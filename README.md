@@ -4,6 +4,12 @@
 输入任意文字，用**火山引擎（Volcengine）豆包语音**合成并播报，支持 **14 种预置音色**与
 **自定义声音复刻音色（克隆声线）** 两种模式，一键切换。
 
+本仓库提供两种形态：
+
+- **动态版（`src/`）**：DSH 动态 Cordis 插件，进程内临时运行，重启后需重新注册。
+- **永久静态版（`static-version/`）**：静态插件包，安装后**每次重启自动加载**；
+  桌宠默认收起，由你点击「🐱 启动塔菲桌宠」按钮手动启动。
+
 ![桌宠示意](assets/EMO_HERO_URI.png)
 
 ## 功能特性
@@ -58,6 +64,82 @@
 
 > 说明：动态插件是进程内临时的；重启 DSH 后需重新注册。若需持久安装，可把
 > 两个半区整理为常规 dsh 插件（`dsh.plugin` 配置）后加入 Web 配置。
+
+---
+
+## 永久安装（静态插件版 · `static-version/`）
+
+静态版让桌宠**跨重启永久可用**：Web 服务重启后插件自动加载，右下角出现
+「🐱 启动塔菲桌宠」按钮，点击后桌宠才展开（是否启动由你决定）。
+
+### 包结构
+
+```
+static-version/
+├── package.json            # dsh.client 配置（inject @deepseek-ai/dsh-client-runtime）
+├── lib/
+│   ├── index.js            # Host：POST /taffy-pet/tts 合成路由 + GET /taffy-pet/config
+│   └── client.js           # 浏览器：启动按钮 + 桌宠 UI（素材内联，构建生成）
+├── src/client.template.js  # 浏览器源码模板
+├── scripts/build.mjs       # 构建脚本（内联素材 → lib/client.js）
+└── assets/                 # 桌宠素材 PNG
+```
+
+### 第一步：填写你的 Key
+
+编辑 `static-version/lib/index.js` 顶部的 `KEYS` 常量：
+
+```js
+const KEYS = {
+  arkKey: "ark-…",      // 你的 Agent Plan 专属 Key（预置音色）
+  cloneKey: "…",        // 你的声音复刻 Key
+  cloneVoice: "S_…",    // 你的复刻音色 ID（豆包语音控制台复制）
+  defaultVoice: "zh_female_sajiaoxuemei_uranus_bigtts",
+};
+```
+
+> 复刻音色 ID 通过 `GET /taffy-pet/config` 下发给浏览器，客户端无需硬编码，
+> 填好 Key 重启即生效。
+
+### 第二步：安装到 web profile（与主题包同款 link 方式）
+
+```bash
+# 1) 加入 profile 依赖（link 指向本目录）
+#    ~/.dsh/profiles/web/package.json 的 dependencies 增加：
+#    "dsh-client-ui-taffy-pet": "link:<本目录绝对路径>"
+
+# 2) node_modules 软链
+ln -s <本目录绝对路径> ~/.dsh/profiles/web/node_modules/dsh-client-ui-taffy-pet
+
+# 3) roster 挂载：编辑 ~/.dsh/profiles/web/cordis.patch.yml 的 insert 列表
+#    - insert:
+#        - id: taffy-pet
+#          name: 'dsh-client-ui-taffy-pet'
+```
+
+### 第三步：重启生效
+
+重启 web 服务（`dsh web`）。之后每次启动：
+
+1. 右下角出现「🐱 启动塔菲桌宠」按钮（默认收起）；
+2. 点击展开桌宠，输入文字/选音色/测试语音即可；
+3. 点面板右上角「–」收起，不影响插件运行。
+
+### 修改素材或音色后重建
+
+```bash
+cd static-version
+node scripts/build.mjs   # 把 assets/*.png 内联进 lib/client.js
+```
+
+### 静态版与动态版的差异
+
+| | 动态版（src/） | 静态版（static-version/） |
+| --- | --- | --- |
+| 存活期 | 进程内存，重启消失 | 随 Web 启动自动加载 |
+| 桌宠默认状态 | 自动弹出 | 收起，点击启动按钮 |
+| 配置方式 | 桌宠 ⚙ 面板 / 代码常量 | 改 `lib/index.js` 的 `KEYS` |
+| 素材 | Host 静态路由读取 | 构建时内联 data URI |
 
 ---
 

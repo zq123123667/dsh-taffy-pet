@@ -1,0 +1,30 @@
+{
+  "name": "dsh-client-ui-taffy-pet",
+  "version": "0.1.0",
+  "description": "塔菲语音播报桌宠（永久版）：Agent Plan 预置音色 + 声音复刻音色，重启后由用户手动启动。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "immediately": true
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js"
+  ],
+  "license": "MIT"
+}
