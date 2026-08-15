@@ -315,6 +315,15 @@ data: {"code":20000000,"message":"OK","data":null}
 - 仓库中的代码**不包含任何真实 API Key**。请把 Key 填在桌宠 ⚙ 高级设置（仅存于
   插件运行内存，重启后需重新填写），或填入 `src/host.js` 的 `DEFAULT` 常量。
 - **切勿**把含真实 Key 的版本推送到公开仓库。
+- 静态版（`static-version/`）的 Key 支持**环境变量**注入：
+  `TAFFY_ARK_KEY` / `TAFFY_CLONE_KEY` / `TAFFY_CLONE_VOICE`（未设置时回退到
+  `lib/index.js` 的 `KEYS` 常量）。
+- **命令注入防护**：密钥/URL 一律经 `shell.run` 的 env 传入，命令内仅 `"$VAR"` 引用；
+  `ttsUrl` 经 `new URL()` 校验（仅 http/https），无法逃逸执行 shell。
+- **静态版路由防护**：`/taffy-pet/tts`、`/taffy-pet/config` 校验 Origin 同源并限流
+  （每 IP 每 10 秒最多 30 次），防止跨站盗刷。
+- **代理可配置**：`PROXY` 常量默认空（走系统代理）；需要显式代理时再填写，避免
+  硬编码他人网络导致不可用。
 - 桌宠形象素材来自 [永雏塔菲图片站](https://image.acetaffy.org/) / 永雏塔菲百科，仅供个人使用。
 
 ## License

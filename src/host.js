@@ -1,27 +1,27 @@
-// 塔菲语音播报桌宠 —— Host 半区
-// 支持两种 TTS 资源：
-//   A. 预置音色（方舟 Agent Plan / 豆包语音）：POST /api/v3/plan/tts/unidirectional
-//      （X-Api-Key: Agent Plan Key，X-Api-Resource-Id: seed-tts-2.0，响应 NDJSON 流）
-//   B. 声音复刻音色：POST /api/v3/tts/unidirectional/sse
-//      （X-Api-Key: 复刻 Key，X-Api-Resource-Id: seed-icl-2.0，speaker: S_xxx，响应 SSE 流）
+// 塔菲语言播报桌宠 —— Host 半区（动态版 · 安全加固）
+// 支持三种 TTS 资源（按 cfg.ttsUrl 自动识别）：
+//   A. Agent Plan 预置音色：/api/v3/plan/tts/unidirectional（NDJSON 流）
+//   B. 声音复刻音色：/api/v3/tts/unidirectional/sse（SSE 流）
+//   C. 常规方舟预置音色：/api/v3/tts（单条 JSON）
 //
-// ★ 密钥安全：本文件默认不写死任何 Key。请在你的 DSH 会话里运行插件后，
-//   通过桌宠 ⚙ 配置面板（或下面的 DEFAULT 常量）填入你自己的 Key。
-//   也可以把下面的默认值改成你自己的（注意：推送到公开仓库时切勿提交真实 Key）。
+// 安全：密钥/URL 一律经 shell.run 的 env 传入，命令内 "$VAR" 引用（杜绝 shell 注入）；
+//       ttsUrl 经 new URL() 校验协议；代理可配置（公开仓库默认空）。
 return {
   apply(ctx) {
-    // ── 默认配置（可在桌宠界面里改；公开仓库请留空） ────────
+    // ── 默认配置（公开仓库留空；本机请在桌宠 ⚙ 高级设置填入） ──
     const DEFAULT = {
-      arkKey: '',      // ★ Agent Plan 专属 Key（预置音色用）。桌宠 ⚙ → 高级设置 → Agent Plan API Key
-      cloneKey: '',    // ★ 声音复刻 API Key。桌宠 ⚙ → 高级设置 →（填入后点保存）
-      resourceId: 'seed-icl-2.0',                                    // 复刻资源（声音复刻2.0）
-      ttsUrl: 'https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse', // 复刻走标准 SSE 端点
+      arkKey: '',      // ★ Agent Plan 专属 Key（预置音色）
+      cloneKey: '',    // ★ 声音复刻 Key
+      resourceId: 'seed-icl-2.0',
+      ttsUrl: 'https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse',
     }
-    const DEFAULT_CLONE_VOICE = ''      // ★ 你的复刻音色 ID（S_ 开头，豆包语音控制台复制）；或在 ⚙ 高级设置填
-    const DEFAULT_VOICE = 'zh_female_sajiaoxuemei_uranus_bigtts'     // 预置音色默认（撒娇学妹）
+    const DEFAULT_CLONE_VOICE = ''      // ★ 你的复刻音色 ID（S_…）
+    const DEFAULT_VOICE = 'zh_female_sajiaoxuemei_uranus_bigtts'
     const PLAN_URL = 'https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional'
-    const ROOT = '/mnt/e/agent/dsh/taffy-pet'                        // ★ 改成你的工作目录（素材与缓存）
-    const ASSET_DIR = ROOT + '/assets'                               // 桌宠素材目录（放 EMO_*.png）
+    const ROOT = '/mnt/e/agent/dsh/taffy-pet'   // ★ 改为你的工作目录（素材与缓存）
+    const ASSET_DIR = ROOT + '/assets'
+    // 代理（可配置）：默认空 = 走系统代理；需要显式代理时在此填写
+    const PROXY = {}
     const VOICES = {
       'zh_female_sajiaoxuemei_uranus_bigtts': '撒娇学妹',
       'zh_female_tianmeixiaoyuan_uranus_bigtts': '甜美小源',
@@ -80,10 +80,11 @@ return {
     async function shellReadBase64(absPath) {
       if (shell === undefined) throw new Error('shell service unavailable')
       const res = await shell.run(await shell.resolve({
-        command: "base64 -w0 '" + absPath + "'",
+        command: 'base64 -w0 "$F"',
         workdir: ROOT,
         timeoutMs: 15000,
         stdoutMaxBytes: 4 * 1024 * 1024,
+        env: { F: absPath, ...PROXY },
       }))
       const out = res.stdout && res.stdout.text ? res.stdout.text : ''
       return out.trim()
@@ -146,6 +147,7 @@ return {
       if (!sentence) return { ok: false, error: 'empty', message: '没有可播报的文字' }
       const isPlan = cfg.ttsUrl.indexOf('/api/v3/plan/') !== -1
       const isSse = cfg.ttsUrl.indexOf('/api/v3/tts/unidirectional/sse') !== -1
+      const isArk = !isPlan && !isSse
       if (isPlan && !(cfg.arkKey.length > 12 && !/^(PASTE|YOUR|<)/.test(cfg.arkKey))) {
         return { ok: false, error: 'no-key', message: '预置音色需要 Agent Plan Key：点 ⚙ 高级设置填入' }
       }
@@ -153,30 +155,56 @@ return {
         return { ok: false, error: 'no-key', message: '复刻音色缺少复刻 API Key（cloneKey）：点 ⚙ 高级设置填入' }
       }
       if (shell === undefined) return { ok: false, error: 'env', message: '缺少 shell 服务' }
+
+      // URL 校验：仅 http/https 绝对地址
+      let safeUrl
+      try {
+        safeUrl = new URL(cfg.ttsUrl)
+        if (safeUrl.protocol !== 'https:' && safeUrl.protocol !== 'http:') throw new Error('protocol')
+      } catch (e) {
+        return { ok: false, error: 'config', message: 'TTS 地址无效（须为 http/https URL）' }
+      }
+
       const requested = opts && opts.voice
       const voice = (requested && (VOICES[requested] || requested === cfg.customVoice))
         ? requested
         : (cfg.customVoice || DEFAULT_VOICE)
       const speed = Number(opts && opts.speed) || 1
       const speechRate = Math.max(-50, Math.min(100, Math.round((speed - 1) * 100)))
-      const payload = JSON.stringify({
-        user: { uid: 'taffy-pet' },
-        req_params: {
-          text: sentence,
-          speaker: voice,
-          audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: speechRate },
-        },
-      })
-      let authHead
-      if (isSse) {
-        authHead = "-H 'X-Api-Key: " + cfg.cloneKey + "' -H 'X-Api-Resource-Id: " + cfg.resourceId + "'"
-      } else if (isPlan) {
-        authHead = "-H 'X-Api-Key: " + cfg.arkKey + "' -H 'X-Api-Resource-Id: " + cfg.resourceId + "'"
+
+      // 密钥/URL 全部经 env 传入，命令内仅 "$VAR" 引用
+      let ttsKey, headerLine, resource, payload
+      if (isArk) {
+        ttsKey = cfg.arkKey
+        headerLine = 'Authorization: Bearer'
+        resource = ''
+        payload = JSON.stringify({
+          model: cfg.resourceId,
+          input: sentence,
+          voice,
+          response_format: 'mp3',
+          speed_ratio: speed,
+          volume_ratio: 1,
+          pitch_ratio: 1,
+        })
       } else {
-        authHead = "-H 'Authorization: Bearer " + cfg.arkKey + "'"
+        ttsKey = isSse ? cfg.cloneKey : cfg.arkKey
+        headerLine = 'X-Api-Key'
+        resource = cfg.resourceId
+        payload = JSON.stringify({
+          user: { uid: 'taffy-pet' },
+          req_params: {
+            text: sentence,
+            speaker: voice,
+            audio_params: { format: 'mp3', sample_rate: 24000, speech_rate: speechRate },
+          },
+        })
       }
-      const command = "curl -sS -m 60 -X POST '" + cfg.ttsUrl + "' " + authHead +
-        " -H 'Content-Type: application/json' --data-binary @- -w '\n@@HTTP@@%{http_code}'"
+
+      const command = 'curl -sS -m 60 -X POST "$TTS_URL" -H "$TTS_HEAD: $TTS_KEY"' +
+        (resource ? ' -H "X-Api-Resource-Id: $TTS_RES"' : '') +
+        " -H 'Content-Type: application/json' --data-binary @- -w '\\n@@HTTP@@%{http_code}'"
+
       const res = await shell.run(await shell.resolve({
         command,
         workdir: ROOT,
@@ -184,9 +212,11 @@ return {
         stdoutMaxBytes: 4 * 1024 * 1024,
         stdin: payload,
         env: {
-          HTTPS_PROXY: 'http://172.28.208.1:8000',
-          HTTP_PROXY: 'http://172.28.208.1:8000',
-          ALL_PROXY: 'socks5://172.28.208.1:8000',
+          TTS_URL: safeUrl.href,
+          TTS_HEAD: headerLine,
+          TTS_KEY: ttsKey,
+          TTS_RES: resource,
+          ...PROXY,
         },
       }))
       const outText = (res.stdout && res.stdout.text) || ''
@@ -200,7 +230,7 @@ return {
           ok: false,
           error: 'curl',
           message: 'curl 退出码 ' + res.exitCode + '（HTTP ' + (httpCode || '无') + '）：' +
-            (stderrText.slice(0, 200) || '无错误输出，可能是网络/代理或沙箱限制'),
+            (stderrText.slice(0, 200) || '无错误输出，可能是网络/代理配置问题'),
         }
       }
       if (httpCode && httpCode !== '200') {
@@ -210,27 +240,39 @@ return {
           message: 'HTTP ' + httpCode + (stderrText ? '：' + stderrText.slice(0, 150) : '：服务端拒绝，检查 Key / Resource-Id / 地址'),
         }
       }
+
       let audio = ''
       let errMsg = ''
-      const lines = body.split('\n')
-      for (const line of lines) {
-        const t = line.trim()
-        let jsonText = null
-        if (isSse) {
-          if (t.startsWith('data:')) jsonText = t.slice(5).trim()
-        } else {
-          if (!t) continue
-          jsonText = t
+      if (isArk) {
+        try {
+          const json = JSON.parse(body)
+          const a = json && ((json.data && json.data[0] && json.data[0].audio) || json.audio)
+          if (a) audio = a
+          else errMsg = (json && json.error && (json.error.message || json.error.code)) || (json && json.status_text) || '未知错误'
+        } catch (e) {
+          errMsg = '响应解析失败：' + String((e && e.message) || e)
         }
-        if (jsonText === null) continue
-        let obj = null
-        try { obj = JSON.parse(jsonText) } catch (e) { continue }
-        if (!obj || typeof obj.code !== 'number') continue
-        if ((obj.code === 0 || obj.code === 20000000) && obj.data) {
-          audio += obj.data
-        } else if (obj.code !== 0 && obj.code !== 20000000) {
-          errMsg = String(obj.message || obj.code)
-          break
+      } else {
+        const lines = body.split('\n')
+        for (const line of lines) {
+          const t = line.trim()
+          let jsonText = null
+          if (isSse) {
+            if (t.startsWith('data:')) jsonText = t.slice(5).trim()
+          } else {
+            if (!t) continue
+            jsonText = t
+          }
+          if (jsonText === null) continue
+          let obj = null
+          try { obj = JSON.parse(jsonText) } catch (e) { continue }
+          if (!obj || typeof obj.code !== 'number') continue
+          if ((obj.code === 0 || obj.code === 20000000) && obj.data) {
+            audio += obj.data
+          } else if (obj.code !== 0 && obj.code !== 20000000) {
+            errMsg = String(obj.message || obj.code)
+            break
+          }
         }
       }
       if (!audio) {
@@ -301,6 +343,6 @@ return {
       routeOk: webServer !== undefined,
     }))
 
-    console.log('[taffy-pet] host loaded, configured =', isConfigured())
+    console.log('[taffy-pet] host loaded (hardened), configured =', isConfigured())
   },
 }

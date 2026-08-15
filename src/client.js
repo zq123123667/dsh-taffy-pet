@@ -95,7 +95,10 @@ return {
       const [customInput, setCustomInput] = React.useState('')
       const [status, setStatus] = React.useState(null)
       const [imgErr, setImgErr] = React.useState('')
+      const audioRef = React.useRef(null)
 
+      // 拖拽位置持久化：刷新/重启后记住上次位置
+      const POS_KEY = 'taffy-pet-pos'
       React.useEffect(() => {
         let alive = true
         host.call('pet-status', {}).then((r) => {
@@ -107,6 +110,10 @@ return {
           if (r.customVoice) setVoiceSel(r.customVoice)
           else if (r.defaultVoice) setVoiceSel(r.defaultVoice)
         }).catch(() => {})
+        try {
+          const saved = JSON.parse(localStorage.getItem(POS_KEY))
+          if (saved && typeof saved.x === 'number') setPos({ x: saved.x, y: saved.y })
+        } catch (e) {}
         return () => { alive = false }
       }, [])
 
@@ -116,6 +123,7 @@ return {
           const x = Math.max(0, Math.min(window.innerWidth - 320, ev.clientX - drag.dx))
           const y = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - drag.dy))
           setPos({ x, y })
+          try { localStorage.setItem(POS_KEY, JSON.stringify({ x, y })) } catch (e) {}
         }
         const up = () => setDrag(null)
         window.addEventListener('pointermove', move)
@@ -136,16 +144,28 @@ return {
 
       const playAudio = (b64, okText) => {
         const audio = new Audio('data:audio/mpeg;base64,' + b64)
+        audioRef.current = audio
         audio.onended = () => {
+          audioRef.current = null
           setTalking(false)
           setBubble({ kind: 'idle', text: okText || '喵～还有什么想让我说的？' })
         }
         audio.onerror = () => {
+          audioRef.current = null
           setTalking(false)
           setBubble({ kind: 'err', text: '播放失败：' + ((audio.error && audio.error.code) || '未知') })
         }
         setTalking(true)
         return audio
+      }
+
+      const stopSpeak = () => {
+        if (audioRef.current) {
+          try { audioRef.current.pause() } catch (e) {}
+          audioRef.current = null
+        }
+        setTalking(false)
+        setBubble({ kind: 'idle', text: '已停止播放喵～' })
       }
 
       const doSpeak = async (sentence, okText) => {
@@ -240,7 +260,7 @@ return {
         const cloneId = status && status.customVoice
         if (cloneId && id === cloneId) {
           applyClone()
-        } else if (!cloneId || id !== cloneId) {
+        } else {
           applyPlan(id)
         }
       }
@@ -304,7 +324,8 @@ return {
               React.createElement('input', {
                 className: 'taffy-pet-input',
                 value: text,
-                placeholder: '输入要让塔菲说的话…',
+                maxLength: 300,
+                placeholder: '输入要让塔菲说的话…（最多300字）',
                 onChange: (ev) => setText(ev.target.value),
                 onKeyDown: (ev) => { if (ev.key === 'Enter') speak() },
               }),
@@ -328,6 +349,9 @@ return {
                 onChange: (ev) => setSpeed(Number(ev.target.value)),
               }),
               React.createElement('span', null, speed.toFixed(1)),
+              talking
+                ? React.createElement('button', { className: 'taffy-pet-btn ghost', onClick: stopSpeak, title: '停止播放' }, '⏹')
+                : null,
               React.createElement('button', { className: 'taffy-pet-gear', onClick: () => setCfgOpen(!cfgOpen), title: '配置' }, '⚙'),
             ),
             cfgOpen
@@ -340,7 +364,7 @@ return {
                     : null,
                   React.createElement('div', { className: 'taffy-pet-cfg-row' },
                     React.createElement('button', { className: 'taffy-pet-btn', disabled: busy, onClick: applyClone }, busy ? '…' : '🎤 复刻音色'),
-                    React.createElement('button', { className: 'taffy-pet-btn ghost', disabled: busy, onClick: () => applyPlan() }, busy ? '…' : '🗣 预置音色'),
+                    React.createElement('button', { className: 'taffy-pet-btn ghost', disabled: busy, onClick: () => applyPlan(voiceSel && !voiceSel.startsWith('S_') ? voiceSel : undefined) }, busy ? '…' : '🗣 预置音色'),
                   ),
                   React.createElement('div', { className: 'taffy-pet-cfg-row' },
                     React.createElement('button', { className: 'taffy-pet-btn', disabled: busy, onClick: testConfig }, busy ? '…' : '测试语音'),
@@ -358,8 +382,8 @@ return {
                         React.createElement('label', null, '复刻 API Key'),
                         React.createElement('input', {
                           type: 'password',
-                          value: '',
-                          placeholder: '复刻 Key（保存后生效，不显示回填）',
+                          value: cloneKeyInput,
+                          placeholder: '复刻 Key（保存后生效）',
                           onChange: (ev) => setCloneKeyInput(ev.target.value),
                         }),
                         React.createElement('label', null, 'Resource-Id'),

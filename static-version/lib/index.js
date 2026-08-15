@@ -1,24 +1,26 @@
 /**
- * 塔菲语音播报桌宠 —— Host 半区（永久版 · 公开模板）
+ * 塔菲语音播报桌宠 —— Host 半区（永久版 · 安全加固）
  *
- * 提供两个路由：
+ * 路由：
  *   POST /taffy-pet/tts     语音合成（body: {text, voice, speed, mode}，mode: clone|plan|ark）
- *   GET  /taffy-pet/config  下发复刻音色 ID / 预置音色列表给浏览器（不含密钥）
+ *   GET  /taffy-pet/config  下发复刻音色 ID / 预置音色列表（不含密钥）
  *
- * ★ 安装到本机后，请把下面的 KEYS 填成你自己的：
- *   - arkKey：方舟 Agent Plan 专属 Key（预置音色用）
- *   - cloneKey：声音复刻 API Key（复刻音色用）
- *   - cloneVoice：你的复刻音色 ID（S_ 开头，豆包语音控制台复制）
- * 密钥仅存本机；推送到公开仓库时必须留空（保持现状）。
+ * 安全加固（v0.2）：
+ *   - 密钥/URL 不再拼进 shell 命令：经 shell.run 的 env 传入，命令内用 "$VAR" 引用；
+ *   - ttsUrl 经 new URL() 校验协议（仅 http/https）；
+ *   - 路由校验 Origin 同源 + 简单限流（每 IP 每 10s 最多 30 次）；
+ *   - 代理默认可配置：本机按需填写，公开版留空。
  */
 
 export const name = "client-ui-taffy-pet";
 
+// 密钥：优先读环境变量（TAFFY_ARK_KEY / TAFFY_CLONE_KEY / TAFFY_CLONE_VOICE），
+// 未设置时回退到下面的默认值（本机安装填写你的 Key；公开仓库保持空字符串）。
 const KEYS = {
-  arkKey: "",      // ★ 填你的 Agent Plan 专属 Key
-  cloneKey: "",    // ★ 填你的声音复刻 Key
-  cloneVoice: "",  // ★ 填你的复刻音色 ID（S_…）
-  defaultVoice: "zh_female_sajiaoxuemei_uranus_bigtts", // 预置音色默认（撒娇学妹）
+  arkKey: process.env.TAFFY_ARK_KEY || "",       // ★ 环境变量 TAFFY_ARK_KEY 或此处填写
+  cloneKey: process.env.TAFFY_CLONE_KEY || "",   // ★ 环境变量 TAFFY_CLONE_KEY 或此处填写
+  cloneVoice: process.env.TAFFY_CLONE_VOICE || "", // ★ 你的复刻音色 ID（S_…）
+  defaultVoice: "zh_female_sajiaoxuemei_uranus_bigtts",
 };
 
 const PRESETS = [
@@ -44,11 +46,35 @@ const URLS = {
   ark: "https://ark.cn-beijing.volces.com/api/v3/tts",
 };
 
-const PROXY = {
-  HTTPS_PROXY: "http://172.28.208.1:8000",
-  HTTP_PROXY: "http://172.28.208.1:8000",
-  ALL_PROXY: "socks5://172.28.208.1:8000",
-};
+// 代理（可配置）：默认走系统代理设置；如网络需要显式代理，在此填写或删空。
+// 注意：这是部署环境相关配置，公开模板应留空。
+// 代理（可配置）：默认空 = 走系统代理；如部署环境需要显式代理，在此填写。
+const PROXY = {};
+
+// 限流：每 IP 每 10 秒最多 30 次合成
+const RATE_LIMIT = { max: 30, windowMs: 10000 };
+const hits = new Map();
+
+function isLimited(req) {
+  const ip = (req.socket && req.socket.remoteAddress) || "unknown";
+  const now = Date.now();
+  const w = hits.get(ip) || { n: 0, at: now };
+  if (now - w.at > RATE_LIMIT.windowMs) { w.n = 0; w.at = now; }
+  w.n += 1;
+  hits.set(ip, w);
+  if (hits.size > 5000) { for (const [k, v] of hits) { if (now - v.at > RATE_LIMIT.windowMs) hits.delete(k); } }
+  return w.n > RATE_LIMIT.max;
+}
+
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true; // 同源 fetch 可能不带 Origin；跨站简单请求会带
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch (e) {
+    return false;
+  }
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -77,10 +103,11 @@ function base64ToBytes(b64) {
 
 async function shellReadBase64(shell, absPath) {
   const res = await shell.run(await shell.resolve({
-    command: "base64 -w0 '" + absPath + "'",
+    command: "base64 -w0 \"$F\"",
     workdir: "/tmp",
     timeoutMs: 15000,
     stdoutMaxBytes: 4 * 1024 * 1024,
+    env: { F: absPath, ...PROXY },
   }));
   return ((res.stdout && res.stdout.text) || "").trim();
 }
@@ -108,33 +135,65 @@ async function synthesize(shell, fs, args) {
     ? (String(args.voice || "").startsWith("S_") ? args.voice : KEYS.cloneVoice)
     : (args.voice || KEYS.defaultVoice);
   if (mode === "clone" && !voice) {
-    return { ok: false, error: "no-clone-voice", message: "未配置复刻音色 ID（改 lib/index.js 的 KEYS.cloneVoice）" };
+    return { ok: false, error: "no-clone-voice", message: "未配置复刻音色 ID（环境变量 TAFFY_CLONE_VOICE 或 KEYS.cloneVoice）" };
   }
+
   const speed = Number(args.speed) || 1;
   const speechRate = Math.max(-50, Math.min(100, Math.round((speed - 1) * 100)));
-  const payload = JSON.stringify({
-    user: { uid: "taffy-pet" },
-    req_params: {
-      text,
-      speaker: voice,
-      audio_params: { format: "mp3", sample_rate: 24000, speech_rate: speechRate },
-    },
-  });
 
-  let authHead;
-  let url;
+  // 选定端点 / 密钥 / 请求体（值全部经 env 传入，命令内只出现 $VAR 引用，杜绝注入）
+  let url = URLS[args.mode === "plan" || args.mode === "ark" ? args.mode : "clone"];
+  let ttsKey;
+  let resource = "";
+  let headerLine;
+  let payload;
   if (mode === "clone") {
-    url = URLS.clone;
-    authHead = "-H 'X-Api-Key: " + KEYS.cloneKey + "' -H 'X-Api-Resource-Id: seed-icl-2.0'";
+    ttsKey = KEYS.cloneKey;
+    resource = "seed-icl-2.0";
+    headerLine = "X-Api-Key";
+    payload = JSON.stringify({
+      user: { uid: "taffy-pet" },
+      req_params: {
+        text, speaker: voice,
+        audio_params: { format: "mp3", sample_rate: 24000, speech_rate: speechRate },
+      },
+    });
   } else if (mode === "plan") {
-    url = URLS.plan;
-    authHead = "-H 'X-Api-Key: " + KEYS.arkKey + "' -H 'X-Api-Resource-Id: seed-tts-2.0'";
+    ttsKey = KEYS.arkKey;
+    resource = "seed-tts-2.0";
+    headerLine = "X-Api-Key";
+    payload = JSON.stringify({
+      user: { uid: "taffy-pet" },
+      req_params: {
+        text, speaker: voice,
+        audio_params: { format: "mp3", sample_rate: 24000, speech_rate: speechRate },
+      },
+    });
   } else {
-    url = URLS.ark;
-    authHead = "-H 'Authorization: Bearer " + KEYS.arkKey + "'";
+    ttsKey = KEYS.arkKey;
+    headerLine = "Authorization: Bearer";
+    payload = JSON.stringify({
+      model: resource || "doubao-seed-tts-2.0-250915",
+      input: text,
+      voice,
+      response_format: "mp3",
+      speed_ratio: speed,
+      volume_ratio: 1,
+      pitch_ratio: 1,
+    });
   }
 
-  const command = "curl -sS -m 60 -X POST '" + url + "' " + authHead +
+  // URL 校验：仅 http/https，且必须是绝对地址
+  let safeUrl;
+  try {
+    safeUrl = new URL(url);
+    if (safeUrl.protocol !== "https:" && safeUrl.protocol !== "http:") throw new Error("protocol");
+  } catch (e) {
+    return { ok: false, error: "config", message: "TTS 地址无效（须为 http/https URL）" };
+  }
+
+  const command = "curl -sS -m 60 -X POST \"$TTS_URL\" -H \"$TTS_HEAD: $TTS_KEY\"" +
+    (resource ? " -H \"X-Api-Resource-Id: $TTS_RES\"" : "") +
     " -H 'Content-Type: application/json' --data-binary @- -w '\n@@HTTP@@%{http_code}'";
 
   const res = await shell.run(await shell.resolve({
@@ -143,7 +202,13 @@ async function synthesize(shell, fs, args) {
     timeoutMs: 65000,
     stdoutMaxBytes: 4 * 1024 * 1024,
     stdin: payload,
-    env: PROXY,
+    env: {
+      TTS_URL: safeUrl.href,
+      TTS_HEAD: headerLine,
+      TTS_KEY: ttsKey,
+      TTS_RES: resource,
+      ...PROXY,
+    },
   }));
 
   const outText = (res.stdout && res.stdout.text) || "";
@@ -158,7 +223,7 @@ async function synthesize(shell, fs, args) {
       ok: false,
       error: "curl",
       message: "curl 退出码 " + res.exitCode + "（HTTP " + (httpCode || "无") + "）：" +
-        (stderrText.slice(0, 200) || "无错误输出，可能是网络/代理或沙箱限制"),
+        (stderrText.slice(0, 200) || "无错误输出，可能是网络/代理配置问题"),
     };
   }
   if (httpCode && httpCode !== "200") {
@@ -171,26 +236,38 @@ async function synthesize(shell, fs, args) {
 
   let audio = "";
   let errMsg = "";
-  const isSse = mode === "clone";
-  const lines = body.split("\n");
-  for (const line of lines) {
-    const t = line.trim();
-    let jsonText = null;
-    if (isSse) {
-      if (t.startsWith("data:")) jsonText = t.slice(5).trim();
-    } else {
-      if (!t) continue;
-      jsonText = t;
+  if (mode === "ark") {
+    // 常规方舟：单条 JSON
+    try {
+      const json = JSON.parse(body);
+      const a = json && ((json.data && json.data[0] && json.data[0].audio) || json.audio);
+      if (a) audio = a;
+      else errMsg = (json && json.error && (json.error.message || json.error.code)) || (json && json.status_text) || "未知错误";
+    } catch (e) {
+      errMsg = "响应解析失败：" + String((e && e.message) || e);
     }
-    if (jsonText === null) continue;
-    let obj = null;
-    try { obj = JSON.parse(jsonText); } catch (e) { continue; }
-    if (!obj || typeof obj.code !== "number") continue;
-    if ((obj.code === 0 || obj.code === 20000000) && obj.data) {
-      audio += obj.data;
-    } else if (obj.code !== 0 && obj.code !== 20000000) {
-      errMsg = String(obj.message || obj.code);
-      break;
+  } else {
+    const isSse = mode === "clone";
+    const lines = body.split("\n");
+    for (const line of lines) {
+      const t = line.trim();
+      let jsonText = null;
+      if (isSse) {
+        if (t.startsWith("data:")) jsonText = t.slice(5).trim();
+      } else {
+        if (!t) continue;
+        jsonText = t;
+      }
+      if (jsonText === null) continue;
+      let obj = null;
+      try { obj = JSON.parse(jsonText); } catch (e) { continue; }
+      if (!obj || typeof obj.code !== "number") continue;
+      if ((obj.code === 0 || obj.code === 20000000) && obj.data) {
+        audio += obj.data;
+      } else if (obj.code !== 0 && obj.code !== 20000000) {
+        errMsg = String(obj.message || obj.code);
+        break;
+      }
     }
   }
   if (!audio) {
@@ -204,6 +281,20 @@ async function synthesize(shell, fs, args) {
   return { ok: true, audioBase64: audio, format: "mp3" };
 }
 
+function guard(req, res) {
+  if (!sameOrigin(req)) {
+    res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: false, error: "forbidden", message: "跨站请求被拒绝" }));
+    return false;
+  }
+  if (isLimited(req)) {
+    res.writeHead(429, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: false, error: "rate-limit", message: "请求过于频繁，请稍后再试" }));
+    return false;
+  }
+  return true;
+}
+
 export function apply(ctx) {
   const webServer = ctx.get("webServer");
   const shell = ctx.get("shell");
@@ -214,6 +305,7 @@ export function apply(ctx) {
     kind: "exact",
     path: "/taffy-pet/tts",
     handler: async (req, res) => {
+      if (!guard(req, res)) return;
       let result;
       try {
         const raw = await readBody(req);
@@ -231,6 +323,7 @@ export function apply(ctx) {
     kind: "exact",
     path: "/taffy-pet/config",
     handler: async (req, res) => {
+      if (!guard(req, res)) return;
       const data = {
         ok: true,
         cloneVoice: KEYS.cloneVoice || "",

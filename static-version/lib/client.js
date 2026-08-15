@@ -101,6 +101,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = react.useState(false);
       const [talking, setTalking] = react.useState(false);
       const [bubble, setBubble] = react.useState({ kind: "idle", text: "喵～我是塔菲桌宠，输入文字让我说话吧！" });
+      const audioRef = react.useRef(null);
+      const POS_KEY = "taffy-pet-pos";
 
       react.useEffect(() => {
         let alive = true;
@@ -110,6 +112,10 @@ window.__ModuleLoader__.load({
           if (d.cloneVoice) { setMode("clone"); setVoiceSel(d.cloneVoice); }
           else { setMode("plan"); setVoiceSel(d.defaultVoice || ""); }
         }).catch(() => {});
+        try {
+          const saved = JSON.parse(localStorage.getItem(POS_KEY));
+          if (saved && typeof saved.x === "number") setPos({ x: saved.x, y: saved.y });
+        } catch (e) {}
         return () => { alive = false; };
       }, []);
 
@@ -119,6 +125,7 @@ window.__ModuleLoader__.load({
           const x = Math.max(0, Math.min(window.innerWidth - 320, ev.clientX - drag.dx));
           const y = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - drag.dy));
           setPos({ x, y });
+          try { localStorage.setItem(POS_KEY, JSON.stringify({ x, y })); } catch (e) {}
         };
         const up = () => setDrag(null);
         window.addEventListener("pointermove", move);
@@ -159,11 +166,14 @@ window.__ModuleLoader__.load({
             return;
           }
           const audio = new Audio("data:audio/mpeg;base64," + r.audioBase64);
+          audioRef.current = audio;
           audio.onended = () => {
+            audioRef.current = null;
             setTalking(false);
             setBubble({ kind: "idle", text: okText || "喵～还有什么想让我说的？" });
           };
           audio.onerror = () => {
+            audioRef.current = null;
             setTalking(false);
             setBubble({ kind: "err", text: "播放失败：" + ((audio.error && audio.error.code) || "未知") });
           };
@@ -175,6 +185,15 @@ window.__ModuleLoader__.load({
         } finally {
           setBusy(false);
         }
+      };
+
+      const stopSpeak = () => {
+        if (audioRef.current) {
+          try { audioRef.current.pause(); } catch (e) {}
+          audioRef.current = null;
+        }
+        setTalking(false);
+        setBubble({ kind: "idle", text: "已停止播放喵～" });
       };
 
       const sprite = talking ? IMG.send : IMG.hero;
@@ -216,7 +235,8 @@ window.__ModuleLoader__.load({
               react.createElement("input", {
                 className: "taffy-pet-input",
                 value: text,
-                placeholder: "输入要让塔菲说的话…",
+                maxLength: 300,
+                placeholder: "输入要让塔菲说的话…（最多300字）",
                 onChange: (ev) => setText(ev.target.value),
                 onKeyDown: (ev) => { if (ev.key === "Enter") speak(text, "喵～还有什么想让我说的？"); },
               }),
@@ -240,6 +260,9 @@ window.__ModuleLoader__.load({
                 onChange: (ev) => setSpeed(Number(ev.target.value)),
               }),
               react.createElement("span", null, speed.toFixed(1)),
+              talking
+                ? react.createElement("button", { className: "taffy-pet-btn ghost", onClick: stopSpeak, title: "停止播放" }, "⏹")
+                : null,
             ),
             react.createElement("div", { className: "taffy-pet-opts" },
               react.createElement("button", { className: "taffy-pet-btn ghost", disabled: busy, onClick: () => speak("塔菲来啦喵～测试测试！", "测试成功！塔菲的声音还可以吧？") }, busy ? "…" : "测试语音"),
