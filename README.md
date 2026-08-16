@@ -18,8 +18,9 @@
 </p>
 
 <video controls width="480" poster="docs/demo/demo-1.png">
-  <source src="docs/demo/demo.mp4" type="video/mp4">
-  你的浏览器不支持视频播放，请下载 <a href="docs/demo/demo.mp4">demo.mp4</a> 查看。
+  <source src="https://github.com/zq123123667/dsh-taffy-pet/releases/download/demo-media/demo.mp4" type="video/mp4">
+  你的浏览器不支持视频播放，请下载
+  <a href="https://github.com/zq123123667/dsh-taffy-pet/releases/download/demo-media/demo.mp4">演示视频（GitHub Releases）</a> 查看。
 </video>
 
 ## 仓库结构（单一来源，无历史残留）
