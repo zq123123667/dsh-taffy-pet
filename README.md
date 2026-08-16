@@ -12,12 +12,11 @@
 ## 演示
 
 <p align="center">
-  <img src="docs/demo/demo-1.png" width="200" alt="启动按钮">
-  <img src="docs/demo/demo-2.png" width="220" alt="桌宠面板">
-  <img src="docs/demo/demo-3.png" width="220" alt="插件配置卡片">
+  <img src="docs/demo/demo-2.png" width="260" alt="桌宠面板">
+  <img src="docs/demo/demo-3.png" width="260" alt="插件配置卡片">
 </p>
 
-<video controls width="480" poster="docs/demo/demo-1.png">
+<video controls width="480" poster="docs/demo/demo-2.png">
   <source src="https://github.com/zq123123667/dsh-taffy-pet/releases/download/demo-media/demo.mp4" type="video/mp4">
   你的浏览器不支持视频播放，请下载
   <a href="https://github.com/zq123123667/dsh-taffy-pet/releases/download/demo-media/demo.mp4">演示视频（GitHub Releases）</a> 查看。
