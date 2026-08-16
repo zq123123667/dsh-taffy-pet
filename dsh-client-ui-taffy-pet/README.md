@@ -12,6 +12,7 @@
 - 🛠️ **API Key 可在 DSH 设置 → 插件 → 塔菲桌宠 卡片里填写**，也可在桌宠 ⚙ 高级设置填写
 - 🎯 模式按钮选中态高亮（选中粉色 / 未选中白色）
 - 🔒 密钥默认不硬编码，公开仓库安全
+- 💻 **跨平台：Windows / macOS / Linux 均可安装运行**（见「跨平台支持」）
 
 **一份源码，两种安装模式**：
 
@@ -22,6 +23,19 @@
 
 > ⚠️ 两种模式**二选一**即可，不要同时启用（会出现两个桌宠 / HTTP 路由冲突）。
 > 动态插件重注册时可直接复用本包的 `src/` 两个文件，保证与静态版行为一致。
+
+---
+
+## 跨平台支持（Windows / macOS / Linux）
+
+- **无硬编码路径**：动态模式的素材目录自动探测 —— `TAFFY_ASSET_DIR` 环境变量优先，
+  其次自动查找当前工作目录下的 `taffy-pet/assets`、`dsh-client-ui-taffy-pet/assets`、
+  `dsh-taffy-pet/assets`（含 3 张 PNG 即命中）。静态版素材已内联，不依赖磁盘。
+- **命令兼容**：`base64` 不使用 GNU 专属 `-w0`（macOS 的 BSD base64 同样可用，输出统一
+  去除空白）；curl 命令仅用双引号 + 环境变量传参（sh / PowerShell 兼容且杜绝注入）；
+  不指定 workdir（使用执行器默认目录）。
+- **Windows 提示**：`~/.dsh` 对应 `%USERPROFILE%\.dsh`；curl 随 Win10+ 自带；素材目录
+  若自动探测不到，设置 `TAFFY_ASSET_DIR` 指向含 3 张 PNG 的目录即可。
 
 ---
 

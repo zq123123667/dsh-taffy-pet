@@ -23,8 +23,11 @@ export function apply(ctx) {
     const DEFAULT_VOICE = 'zh_female_sajiaoxuemei_uranus_bigtts'
     const PLAN_URL = 'https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional'
     const ARK_URL = 'https://ark.cn-beijing.volces.com/api/v3/tts'
-    const ROOT = '/mnt/e/agent/dsh/taffy-pet'   // 素材与缓存目录（工作区内）
-    const ASSET_DIR = ROOT + '/assets'
+    // 素材目录候选（动态模式素材路由用；静态版素材已内联进 lib/client.js，不依赖磁盘）：
+    // 优先级：TAFFY_ASSET_DIR 环境变量 > cwd 下的常见目录（自动探测，跨平台）
+    const ASSET_REL_CANDIDATES = ['taffy-pet/assets', 'dsh-client-ui-taffy-pet/assets', 'dsh-taffy-pet/assets']
+    let resolvedCwd = ''
+    let resolvedAssetDir = ''
     // 代理（可配置）：默认空 = 走系统代理；需要显式代理时在此填写
     const PROXY = {}
     const VOICES = {
@@ -87,14 +90,14 @@ export function apply(ctx) {
     async function shellReadBase64(absPath) {
       if (shell === undefined) throw new Error('shell service unavailable')
       const res = await shell.run(await shell.resolve({
-        command: 'base64 -w0 "$F"',
-        workdir: ROOT,
+        // 跨平台：去掉 GNU 专属 -w0（macOS BSD base64 不支持）；输出统一去除全部空白
+        command: 'base64 "$F"',
         timeoutMs: 15000,
         stdoutMaxBytes: 4 * 1024 * 1024,
         env: { F: absPath, ...PROXY },
       }))
       const out = res.stdout && res.stdout.text ? res.stdout.text : ''
-      return out.trim()
+      return out.replace(/\s+/g, '')
     }
 
     async function readFileBytes(absPath) {
@@ -111,6 +114,43 @@ export function apply(ctx) {
       if (bytes === null) bytes = base64ToBytes(await shellReadBase64(absPath))
       fileCache[absPath] = bytes
       return bytes
+    }
+
+    // ── 跨平台路径探测：cwd 与素材目录（不硬编码路径） ──
+    async function resolveCwd() {
+      if (resolvedCwd) return resolvedCwd
+      if (shell !== undefined) {
+        try {
+          const res = await shell.run(await shell.resolve({
+            command: 'pwd',
+            timeoutMs: 8000,
+            stdoutMaxBytes: 4096,
+          }))
+          const out = (res.stdout && res.stdout.text || '').trim()
+          if (out) resolvedCwd = out
+        } catch (e) {}
+      }
+      return resolvedCwd
+    }
+
+    async function getAssetDir() {
+      if (resolvedAssetDir) return resolvedAssetDir
+      const candidates = []
+      if (ENV.TAFFY_ASSET_DIR) candidates.push(ENV.TAFFY_ASSET_DIR)
+      const cwd = await resolveCwd()
+      if (cwd) for (const rel of ASSET_REL_CANDIDATES) candidates.push(cwd + '/' + rel)
+      for (const dir of candidates) {
+        try {
+          const bytes = await readFileBytes(dir + '/EMO_HERO_URI.png')
+          if (bytes && bytes.length > 100) {
+            resolvedAssetDir = dir
+            console.log('[taffy-pet] assets dir =', dir)
+            return dir
+          }
+        } catch (e) {}
+      }
+      resolvedAssetDir = candidates[0] || ''
+      return resolvedAssetDir
     }
 
     // ── 素材静态路由（仅动态模式需要；静态版素材构建时内联进 lib/client.js） ──
@@ -133,7 +173,13 @@ export function apply(ctx) {
               res.end('not found: ' + name)
               return
             }
-            const bytes = await readFileBytes(ASSET_DIR + '/' + file)
+            const dir = await getAssetDir()
+            if (!dir) {
+              res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+              res.end('assets 目录未找到，请设置环境变量 TAFFY_ASSET_DIR 指向含 3 张 PNG 的目录')
+              return
+            }
+            const bytes = await readFileBytes(dir + '/' + file)
             res.writeHead(200, {
               'Content-Type': 'image/png',
               'Content-Length': String(bytes.length),
@@ -208,13 +254,13 @@ export function apply(ctx) {
         })
       }
 
+      // 跨平台：命令只用双引号 + "$VAR"（sh / PowerShell 兼容）；-w 格式串经 env 传入（避开各 shell 转义差异）
       const command = 'curl -sS -m 60 -X POST "$TTS_URL" -H "$TTS_HEAD: $TTS_KEY"' +
         (resource ? ' -H "X-Api-Resource-Id: $TTS_RES"' : '') +
-        " -H 'Content-Type: application/json' --data-binary @- -w '\\n@@HTTP@@%{http_code}'"
+        ' -H "Content-Type: application/json" --data-binary @- -w "$HTTP_FMT"'
 
       const res = await shell.run(await shell.resolve({
         command,
-        workdir: ROOT,
         timeoutMs: 65000,
         stdoutMaxBytes: 4 * 1024 * 1024,
         stdin: payload,
@@ -223,6 +269,7 @@ export function apply(ctx) {
           TTS_HEAD: headerLine,
           TTS_KEY: ttsKey,
           TTS_RES: resource,
+          HTTP_FMT: '\\n@@HTTP@@%{http_code}',
           ...PROXY,
         },
       }))
