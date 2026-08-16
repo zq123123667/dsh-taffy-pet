@@ -27,6 +27,7 @@ jobs:
         run: npm install -g @deepseek-ai/dsh
 
       - name: 单元测试 + lint
+        shell: bash
         run: |
           cd dsh-client-ui-taffy-pet
           npm test

@@ -7,13 +7,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const { VOICES, FALLBACK_VOICES, DEFAULT_VOICE } = await import(join(root, "src", "voices.js"));
+// Windows 绝对路径必须转 file:// URL（否则 import() 把盘符当协议，ERR_UNSUPPORTED_ESM_URL_SCHEME）
+const { VOICES, FALLBACK_VOICES, DEFAULT_VOICE } = await import(pathToFileURL(join(root, "src", "voices.js")));
 
 // ── 加载插件（mock ctx，注册静态路由） ──
-const mod = await import(join(root, "lib", "index.js"));
+const mod = await import(pathToFileURL(join(root, "lib", "index.js")));
 const routes = [];
 const fakeCtx = {
   get(name) {

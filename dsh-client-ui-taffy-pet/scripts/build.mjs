@@ -12,7 +12,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, extname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HOST_ID = "client-ui-taffy-pet";
@@ -75,7 +75,8 @@ const ASSET_SOURCES = {
 
 // ── 0) 音色常量一致性校验（src/voices.js 为单一来源，host/client 内嵌副本不得漂移） ──
 {
-  const voices = await import(join(root, "src", "voices.js"));
+  // Windows 绝对路径（D:\…）必须转 file:// URL，否则 import() 会把盘符当协议
+  const voices = await import(pathToFileURL(join(root, "src", "voices.js")));
   const hostSrc = readFileSync(join(root, "src", "host.js"), "utf8");
   const clientSrc = readFileSync(join(root, "src", "client.js"), "utf8");
 
