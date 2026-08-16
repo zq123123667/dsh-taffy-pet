@@ -4,7 +4,7 @@
  *
  * 流程：
  *   1) 在 $HOME/.dsh/profiles/web 生成最小 web profile，并挂载 dsh-client-ui-taffy-pet
- *   2) 启动 `dsh web --port 13080`
+ *   2) 启动 `dsh web --port 3080`
  *   3) 探测三项：
  *        GET  /taffy-pet/config                              状态/音色列表（应为 JSON）
  *        POST /taffy-pet/tts                                 合成路由（无 Key 时返回明确错误）
@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PKG = join(ROOT, "dsh-client-ui-taffy-pet");
-const PORT = 13080;
+const PORT = 3080;
 const BASE = `http://127.0.0.1:${PORT}`;
 // 独立的测试 DSH 根目录：绝不触碰本机真实 ~/.dsh（避免覆盖真实 web profile）
 const TEST_HOME = join(homedir(), ".dsh-taffy-test");

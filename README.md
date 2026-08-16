@@ -37,9 +37,9 @@ dsh-taffy-pet/
 cd dsh-client-ui-taffy-pet && node scripts/build.mjs
 
 # 2) 按 INSTALL.md 挂载到 ~/.dsh/profiles/web 后启动
-dsh web --port 13080
+dsh web（默认端口 3080）
 
-# 3) 浏览器打开 http://127.0.0.1:13080 → 右下角「🐱 启动塔菲桌宠」
+# 3) 浏览器打开 http://127.0.0.1:3080 → 右下角「🐱 启动塔菲桌宠」
 #    API Key 在 设置 → 插件 → 塔菲桌宠 里填写
 ```
 
@@ -55,7 +55,7 @@ dsh web --port 13080
 ## 测试
 
 - 三平台安装冒烟测试（含假 Key 强制走合成分支）：GitHub Actions 已配置，push 自动运行；
-  本地可跑 `node scripts/test-run.mjs`（需先停掉占用 13080 的进程）。
+  本地可跑 `node scripts/test-run.mjs`（需先停掉占用 3080 的进程）。
 - Linux 容器：`docker build -t taffy-test . && docker run --rm taffy-test`。
 
 ## License

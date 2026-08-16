@@ -116,10 +116,10 @@ export TAFFY_CLONE_VOICE_NAME='…'       # 复刻音色名称（可选）
 ## 5. 启动 DSH Web
 
 ```bash
-dsh web --port 13080
+dsh web
 ```
 - 首次启动会扫描插件 bundle，可能慢几秒
-- 看到日志出现监听端口后，另开终端验证（或后台运行：`nohup dsh web --port 13080 > dsh.log 2>&1 &`）
+- 看到日志出现监听端口后，另开终端验证（或后台运行：`nohup dsh web > dsh.log 2>&1 &`）
 
 ## 6. 验证
 
@@ -127,17 +127,17 @@ dsh web --port 13080
 
 ```bash
 # ① 配置状态（configured:true 表示 Key 生效；voices 为 14 个预置音色）
-curl http://127.0.0.1:13080/taffy-pet/config
+curl http://127.0.0.1:3080/taffy-pet/config
 
 # ② 真实合成（有 Key 时返回 ok:true + audioBase64；无 Key 时返回明确错误提示）
-curl -X POST http://127.0.0.1:13080/taffy-pet/tts \
+curl -X POST http://127.0.0.1:3080/taffy-pet/tts \
   -H 'Content-Type: application/json' \
   -d '{"text":"你好喵","voice":"zh_female_sajiaoxuemei_uranus_bigtts","speed":1}'
 ```
 
 ### 6.2 浏览器（完整功能）
 
-1. 打开 `http://127.0.0.1:13080`
+1. 打开 `http://127.0.0.1:3080`
 2. 右下角出现「🐱 启动塔菲桌宠」→ 点击展开
 3. 设置 → 插件 → 塔菲桌宠：填 Key（或已用环境变量则显示 ✓ 已配置）→ 测试语音
 4. 桌宠输入框输入文字 → 点「说！」→ 听声音
@@ -146,7 +146,7 @@ curl -X POST http://127.0.0.1:13080/taffy-pet/tts \
 ## 7. 快速自动化（可选）
 
 ```bash
-# 冒烟测试（验证安装+路由，隔离环境不碰真实 profile，需先停掉 13080 端口占用）
+# 冒烟测试（验证安装+路由，隔离环境不碰真实 profile，需先停掉 3080 端口占用）
 node scripts/test-run.mjs
 ```
 
