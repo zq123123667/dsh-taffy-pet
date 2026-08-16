@@ -6,9 +6,13 @@
 
 本仓库提供两种形态：
 
-- **动态版（`src/`）**：DSH 动态 Cordis 插件，进程内临时运行，重启后需重新注册。
-- **永久静态版（`static-version/`）**：静态插件包，安装后**每次重启自动加载**；
-  桌宠默认收起，由你点击「🐱 启动塔菲桌宠」按钮手动启动。
+- **统一版（`dsh-client-ui-taffy-pet/`）★ 推荐**：一份源码同时支持动态模式与
+  标准/静态模式安装，API Key 可在 **DSH 设置 → 插件** 里填写；`node scripts/build.mjs`
+  一键生成静态版产物。详见其目录内 README。
+- **动态版（`src/`）**：DSH 动态 Cordis 插件，进程内临时运行，重启后需重新注册
+  （已并入统一版 `dsh-client-ui-taffy-pet/src/`，本目录为旧版留存）。
+- **永久静态版（`static-version/`）**：旧版静态插件包（已并入统一版
+  `dsh-client-ui-taffy-pet/lib/`，本目录为旧版留存）。
 
 ![桌宠示意](assets/EMO_HERO_URI.png)
 
