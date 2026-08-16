@@ -1,6 +1,6 @@
 {
   "name": "dsh-client-ui-taffy-pet",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "塔菲语音播报桌宠（统一版）：一份源码支持两种安装模式 —— 动态插件（进程内临时）与标准/静态安装（web profile 挂载，重启自动加载）。火山引擎豆包语音：预置音色 + 声音复刻，API Key 可在插件设置里填写。",
   "type": "module",
   "main": "lib/index.js",
@@ -14,7 +14,9 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/lint.mjs",
+    "test": "node scripts/build.mjs && node --test scripts/test-unit.mjs"
   },
   "dsh": {
     "client": {

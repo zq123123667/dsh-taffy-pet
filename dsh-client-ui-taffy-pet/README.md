@@ -46,16 +46,37 @@
 
 ```
 dsh-client-ui-taffy-pet/
-├── package.json          # 标准/静态模式配置（dsh.client → @deepseek-ai/dsh-client-runtime）
+├── package.json          # 标准/静态模式配置（dsh.client）+ build/lint/test 脚本
 ├── src/
-│   ├── host.js           # ★ 唯一 Host 源码（动态模式直接作为 code.host）
-│   └── client.js         # ★ 唯一 Client 源码（动态模式直接作为 code.client）
-├── lib/                  # 标准/静态模式产物（由构建脚本生成，勿手改）
-│   ├── index.js          #   Host 入口（export name + export apply）
+│   ├── host.js           # ★ Host 源码（动态模式直接作为 code.host）
+│   ├── client.js         # ★ Client 源码（动态模式直接作为 code.client）
+│   └── voices.js         # 音色常量唯一来源（构建时校验 host/client 内嵌副本一致）
+├── lib/                  # 构建产物（npm run build 生成；不入库，克隆后需先构建）
+│   ├── index.js          #   Host 入口（export name + inject + export apply）
 │   └── client.js         #   浏览器包（ModuleLoader + 素材内联 data URI）
-├── scripts/build.mjs     # 构建：src/ → lib/
+├── scripts/
+│   ├── build.mjs         # 构建 + 音色一致性校验：src/ → lib/
+│   ├── lint.mjs          # 轻量 lint（硬编码路径 / import / 产物陈旧 / semver）
+│   └── test-unit.mjs     # 单元测试（node:test）：配置守卫 + 三种 TTS 响应解析
 ├── assets/               # 桌宠素材 PNG（3 张）
 └── README.md
+```
+
+## 架构说明（为什么 host/client 是单文件）
+
+- **动态模式**要求插件源码是**自包含单文件**（受限沙箱内无法 import/require），所以
+  `src/host.js` / `src/client.js` 各自内嵌一份音色表；为避免两处漂移，`src/voices.js`
+  是**唯一权威来源**，`npm run build` 会校验两份内嵌副本与它一致（不一致直接报错）。
+- 改音色只改 `src/voices.js`，然后 `npm run build`（会自动校验并重新生成 `lib/`）。
+- TTS 传输层：优先 Node 内置 `fetch`（跨平台、绕开 Windows 沙箱 schannel 问题），
+  受限动态沙箱无 fetch 时自动回退 shell + curl。
+
+## 质量检查
+
+```bash
+npm run build   # 构建 + 音色一致性校验
+npm run lint    # 轻量 lint
+npm test        # 构建 + 单元测试（11 项）
 ```
 
 ---

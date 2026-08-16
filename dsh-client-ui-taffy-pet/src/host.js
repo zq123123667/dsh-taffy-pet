@@ -413,7 +413,8 @@ return {
 
     function applyConfig(a) {
       const x = a || {}
-      if (typeof x.arkKey === 'string') cfg.arkKey = x.arkKey.trim()
+      // Key 字段加非空保护：输入框不预填 Key，空串表示"未改动"，不能覆盖已保存的 Key
+      if (typeof x.arkKey === 'string' && x.arkKey.trim()) cfg.arkKey = x.arkKey.trim()
       if (typeof x.cloneKey === 'string' && x.cloneKey.trim()) cfg.cloneKey = x.cloneKey.trim()
       if (typeof x.resourceId === 'string' && x.resourceId.trim()) cfg.resourceId = x.resourceId.trim()
       if (typeof x.ttsUrl === 'string' && x.ttsUrl.trim()) cfg.ttsUrl = x.ttsUrl.trim()

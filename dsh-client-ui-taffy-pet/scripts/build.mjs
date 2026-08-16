@@ -73,6 +73,81 @@ const ASSET_SOURCES = {
   header: join(root, "assets", "EMO_HEADER_URI.png"),
 };
 
+// ── 0) 音色常量一致性校验（src/voices.js 为单一来源，host/client 内嵌副本不得漂移） ──
+{
+  const voices = await import(join(root, "src", "voices.js"));
+  const hostSrc = readFileSync(join(root, "src", "host.js"), "utf8");
+  const clientSrc = readFileSync(join(root, "src", "client.js"), "utf8");
+
+  function extractObject(text, varName) {
+    const start = text.indexOf(`const ${varName} = {`);
+    if (start === -1) throw new Error(`源码中未找到 const ${varName} = {`);
+    const open = text.indexOf("{", start);
+    let depth = 0;
+    let inStr = null;
+    let esc = false;
+    for (let i = open; i < text.length; i++) {
+      const c = text[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (c === "\\") { esc = true; continue; }
+        if (c === inStr) inStr = null;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = c; continue; }
+      if (c === "{") depth++;
+      else if (c === "}") { depth--; if (depth === 0) return text.slice(open, i + 1); }
+    }
+    throw new Error(`未找到 ${varName} 对象结束`);
+  }
+  function parseObj(text) {
+    return new Function("return (" + text + ")")();
+  }
+
+  // host.js 的 VOICES 必须与 voices.js 完全一致
+  const hostVoices = parseObj(extractObject(hostSrc, "VOICES"));
+  const keysEq = JSON.stringify(Object.keys(hostVoices)) === JSON.stringify(Object.keys(voices.VOICES));
+  const valsEq = JSON.stringify(Object.values(hostVoices)) === JSON.stringify(Object.values(voices.VOICES));
+  if (!keysEq || !valsEq) {
+    throw new Error(
+      "src/host.js 的 VOICES 与 src/voices.js 不一致！请只修改 src/voices.js，然后重新构建。" +
+      "\n  host 现有: " + JSON.stringify(hostVoices) +
+      "\n  权威来源: " + JSON.stringify(voices.VOICES),
+    );
+  }
+  console.log("✓ VOICES 一致性：host.js 与 src/voices.js 一致");
+
+  // client.js 的 FALLBACK_VOICES 必须与 voices.js 派生结果一致
+  const fbStart = clientSrc.indexOf("const FALLBACK_VOICES = [");
+  if (fbStart !== -1) {
+    const open = clientSrc.indexOf("[", fbStart);
+    let depth = 0, inStr = null, esc = false;
+    let end = -1;
+    for (let i = open; i < clientSrc.length; i++) {
+      const c = clientSrc[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (c === "\\") { esc = true; continue; }
+        if (c === inStr) inStr = null;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = c; continue; }
+      if (c === "[") depth++;
+      else if (c === "]") { depth--; if (depth === 0) { end = i + 1; break; } }
+    }
+    if (end !== -1) {
+      const clientFb = new Function("return (" + clientSrc.slice(open, end) + ")")();
+      const expectFb = voices.FALLBACK_VOICES;
+      const same = clientFb.length === expectFb.length &&
+        clientFb.every((v, i) => v.id === expectFb[i].id && v.name === expectFb[i].name);
+      if (!same) {
+        throw new Error("src/client.js 的 FALLBACK_VOICES 与 src/voices.js 不一致！请只修改 src/voices.js 后重新构建。");
+      }
+      console.log("✓ FALLBACK_VOICES 一致性：client.js 与 src/voices.js 一致");
+    }
+  }
+}
+
 // ── 1) Host：src/host.js → lib/index.js ────────────────────────────────
 {
   const src = readFileSync(join(root, "src", "host.js"), "utf8");

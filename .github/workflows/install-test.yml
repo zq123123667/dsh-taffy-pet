@@ -26,6 +26,12 @@ jobs:
       - name: 安装 DSH
         run: npm install -g @deepseek-ai/dsh
 
+      - name: 单元测试 + lint
+        run: |
+          cd dsh-client-ui-taffy-pet
+          npm test
+          npm run lint
+
       - name: 运行三平台安装冒烟测试
         run: node scripts/test-run.mjs
         timeout-minutes: 10

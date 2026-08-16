@@ -30,6 +30,11 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const TEST_HOME = join(homedir(), ".dsh-taffy-test");
 const PROFILE = join(TEST_HOME, "profiles", "web");
 
+// lib/ 不入库（构建产物）：测试前先构建，保证最新
+log("构建插件产物 ...");
+const build = spawn("node scripts/build.mjs", { cwd: PKG, shell: true, stdio: "inherit" });
+await new Promise((res, rej) => { build.on("exit", (c) => (c === 0 ? res() : rej(new Error("构建失败，退出码 " + c)))); });
+
 function log(...a) { console.log("[test]", ...a); }
 
 function copyRecursive(src, dst) {

@@ -36,6 +36,12 @@ git clone https://github.com/zq123123667/dsh-taffy-pet.git
 cd dsh-taffy-pet
 ```
 
+> **先构建**（`lib/` 是构建产物、不入库，新克隆后必须生成一次）：
+> ```bash
+> cd dsh-client-ui-taffy-pet && node scripts/build.mjs
+> cd ..
+> ```
+
 ## 3. 初始化 web profile 并挂载插件（静态模式 · 推荐）
 
 ### 3.1 创建目录
