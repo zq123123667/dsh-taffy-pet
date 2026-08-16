@@ -4,8 +4,12 @@
 用**火山引擎（Volcengine）豆包语音**合成并播报，支持 **14 种预置音色** 与
 **自定义声音复刻音色（克隆声线）** 两种模式。
 
+**免费可用**：未配置火山引擎 Key 时，自动回退浏览器内置 **Web Speech API** 免费出声；
+配置 Key 后自动切换火山引擎高音质。
+
 **跨平台**：Windows / macOS / Linux 均可安装运行（TTS 用 Node 内置 fetch，
-规避 Windows 沙箱 schannel 问题）。
+规避 Windows 沙箱 schannel 问题）。**一键安装**：`bash install.sh`（Linux/macOS）或
+`.\install.ps1`（Windows）。
 
 ![桌宠示意](dsh-client-ui-taffy-pet/assets/EMO_HERO_URI.png)
 
