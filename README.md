@@ -18,9 +18,6 @@ dsh-taffy-pet/
 │   ├── src/client.js          #   Client 源码（动态模式直接作为 code.client）
 │   ├── scripts/build.mjs      #   构建：src/ → lib/（lib/ 为构建产物，不入库）
 │   └── README.md              #   完整安装 / 配置 / FAQ
-├── scripts/test-run.mjs       # 三平台安装冒烟测试（CI / Docker / 本机）
-├── .github/workflows/         # GitHub Actions：Linux/Windows/macOS 矩阵测试
-├── Dockerfile                 # Linux 容器测试
 └── INSTALL.md                 # 全新环境完整安装流程
 ```
 
@@ -51,12 +48,6 @@ dsh web（默认端口 3080）
 | **标准/静态模式** | link 进 `~/.dsh/profiles/web` + `cordis.patch.yml` insert，重启自动加载，跨重启永久 |
 
 > 二选一，不要同时启用。
-
-## 测试
-
-- 三平台安装冒烟测试（含假 Key 强制走合成分支）：GitHub Actions 已配置，push 自动运行；
-  本地可跑 `node scripts/test-run.mjs`（需先停掉占用 3080 的进程）。
-- Linux 容器：`docker build -t taffy-test . && docker run --rm taffy-test`。
 
 ## License
 

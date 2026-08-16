@@ -143,22 +143,7 @@ curl -X POST http://127.0.0.1:3080/taffy-pet/tts \
 4. 桌宠输入框输入文字 → 点「说！」→ 听声音
 5. 可验证：模式按钮高亮、自定义音色（ID+名称）出现在下拉顶部、语速滑杆、拖拽/收起
 
-## 7. 快速自动化（可选）
-
-```bash
-# 冒烟测试（验证安装+路由，隔离环境不碰真实 profile，需先停掉 3080 端口占用）
-node scripts/test-run.mjs
-```
-
-Docker（Linux 容器）：
-```bash
-docker build -t taffy-test .
-docker run --rm taffy-test
-```
-
-三平台（Linux/Windows/macOS）独立测试：仓库 GitHub Actions 已配置，push 自动运行。
-
-## 8. 可选：动态模式（进程内临时）
+## 7. 可选：动态模式（进程内临时）
 
 在 DSH 会话中把 `dsh-client-ui-taffy-pet/src/host.js`、`src/client.js` 分别作为
 `code.host` / `code.client` 注册动态插件即可（重启 DSH 需重注册）。
