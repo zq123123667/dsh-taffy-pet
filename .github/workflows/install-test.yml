@@ -1,0 +1,36 @@
+# 塔菲桌宠 —— 三平台独立安装测试（Linux / Windows / macOS）
+# 每个平台都是 GitHub 提供的真实虚拟机，独立完成：
+#   安装 DSH → 生成 web profile → 挂载插件 → 启动 dsh web → 冒烟探测
+# 任意 push 或手动触发（Actions 页 → Run workflow）。
+name: 三平台安装测试
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  install-test:
+    name: ${{ matrix.os }} 安装测试
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装 DSH
+        run: npm install -g @deepseek-ai/dsh
+
+      - name: 运行三平台安装冒烟测试
+        run: node scripts/test-run.mjs
+        timeout-minutes: 10
+        env:
+          # 可选：填入真实 Key 可同时验证 TTS 合成链路（在仓库 Settings → Secrets 配置）
+          TAFFY_ARK_KEY: ${{ secrets.TAFFY_ARK_KEY }}
+          TAFFY_CLONE_KEY: ${{ secrets.TAFFY_CLONE_KEY }}
+          TAFFY_CLONE_VOICE: ${{ secrets.TAFFY_CLONE_VOICE }}
