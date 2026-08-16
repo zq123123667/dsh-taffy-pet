@@ -1,0 +1,5 @@
+# 塔菲桌宠 bundle patch —— 供 DSH bundle 机制（桌面版扩展坞 / dsh.profile.bundles）挂载
+# 由 package.json 的 "dsh": { "bundle": { "patch": "./cordis.patch.yml" } } 声明
+- insert:
+    - id: taffy-pet
+      name: 'dsh-client-ui-taffy-pet'

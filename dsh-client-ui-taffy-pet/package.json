@@ -14,11 +14,12 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "lint": "node scripts/lint.mjs",
-    "test": "node scripts/build.mjs && node --test scripts/test-unit.mjs"
+    "build": "node scripts/build.mjs"
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "inject": [
@@ -29,7 +30,11 @@
   },
   "files": [
     "lib/index.js",
-    "lib/client.js"
+    "lib/client.js",
+    "cordis.patch.yml",
+    "src/",
+    "assets/",
+    "scripts/build.mjs"
   ],
   "license": "MIT"
 }
