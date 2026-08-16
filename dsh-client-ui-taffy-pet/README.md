@@ -46,7 +46,7 @@
 
 ```
 dsh-client-ui-taffy-pet/
-├── package.json          # 标准/静态模式配置（dsh.client）+ build/lint/test 脚本
+├── package.json          # 标准/静态模式配置（dsh.client）+ build 脚本
 ├── src/
 │   ├── host.js           # ★ Host 源码（动态模式直接作为 code.host）
 │   ├── client.js         # ★ Client 源码（动态模式直接作为 code.client）
@@ -54,10 +54,7 @@ dsh-client-ui-taffy-pet/
 ├── lib/                  # 构建产物（npm run build 生成；不入库，克隆后需先构建）
 │   ├── index.js          #   Host 入口（export name + inject + export apply）
 │   └── client.js         #   浏览器包（ModuleLoader + 素材内联 data URI）
-├── scripts/
-│   ├── build.mjs         # 构建 + 音色一致性校验：src/ → lib/
-│   ├── lint.mjs          # 轻量 lint（硬编码路径 / import / 产物陈旧 / semver）
-│   └── test-unit.mjs     # 单元测试（node:test）：配置守卫 + 三种 TTS 响应解析
+├── scripts/build.mjs     # 构建 + 音色一致性校验：src/ → lib/
 ├── assets/               # 桌宠素材 PNG（3 张）
 └── README.md
 ```
@@ -70,14 +67,6 @@ dsh-client-ui-taffy-pet/
 - 改音色只改 `src/voices.js`，然后 `npm run build`（会自动校验并重新生成 `lib/`）。
 - TTS 传输层：优先 Node 内置 `fetch`（跨平台、绕开 Windows 沙箱 schannel 问题），
   受限动态沙箱无 fetch 时自动回退 shell + curl。
-
-## 质量检查
-
-```bash
-npm run build   # 构建 + 音色一致性校验
-npm run lint    # 轻量 lint
-npm test        # 构建 + 单元测试（11 项）
-```
 
 ---
 
