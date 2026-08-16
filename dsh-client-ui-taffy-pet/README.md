@@ -28,14 +28,17 @@
 
 ## 跨平台支持（Windows / macOS / Linux）
 
+- **TTS 合成用 Node 内置 fetch**（OpenSSL 栈）：不依赖 curl / shell，规避 Windows 沙箱受限
+  token 下 curl/schannel 无法建立 HTTPS（`SEC_E_NO_CREDENTIALS`）的问题；受限动态沙箱无
+  fetch 时自动回退 shell + curl（macOS / Linux 正常）。
 - **无硬编码路径**：动态模式的素材目录自动探测 —— `TAFFY_ASSET_DIR` 环境变量优先，
   其次自动查找当前工作目录下的 `taffy-pet/assets`、`dsh-client-ui-taffy-pet/assets`、
   `dsh-taffy-pet/assets`（含 3 张 PNG 即命中）。静态版素材已内联，不依赖磁盘。
-- **命令兼容**：`base64` 不使用 GNU 专属 `-w0`（macOS 的 BSD base64 同样可用，输出统一
-  去除空白）；curl 命令仅用双引号 + 环境变量传参（sh / PowerShell 兼容且杜绝注入）；
+- **命令兼容**：回退路径 `base64` 不使用 GNU 专属 `-w0`（macOS 的 BSD base64 同样可用，
+  输出统一去除空白）；curl 命令仅用双引号 + 环境变量传参（sh / PowerShell 兼容且杜绝注入）；
   不指定 workdir（使用执行器默认目录）。
-- **Windows 提示**：`~/.dsh` 对应 `%USERPROFILE%\.dsh`；curl 随 Win10+ 自带；素材目录
-  若自动探测不到，设置 `TAFFY_ASSET_DIR` 指向含 3 张 PNG 的目录即可。
+- **Windows 提示**：`~/.dsh` 对应 `%USERPROFILE%\.dsh`；素材目录若自动探测不到，设置
+  `TAFFY_ASSET_DIR` 指向含 3 张 PNG 的目录即可。
 
 ---
 

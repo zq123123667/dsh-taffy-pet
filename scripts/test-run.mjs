@@ -145,6 +145,28 @@ if (ttsJson) {
   );
 }
 
+// 4) 假 Key 强制走到合成分支（覆盖 CI 盲区：无 Key 时传输层永不执行，
+//    Windows 沙箱 curl/schannel 问题（SEC_E_NO_CREDENTIALS）就测不出来）
+await fetchText("/taffy-pet/config", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ mode: "clone", cloneKey: "fake-test-key-123456" }),
+});
+const forced = await fetchText("/taffy-pet/tts", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ text: "假 Key 强制合成", voice: config.defaultVoice, speed: 1 }),
+});
+let forcedJson = null;
+try { forcedJson = JSON.parse(forced.text); } catch { /* 非 JSON */ }
+// 传输层正常时：ok:true（真 Key）或 network/http/api（假 Key 被拒）；'curl'/'no-key' 视为回归
+const transportOk = forcedJson && (forcedJson.ok === true || ["network", "http", "api"].includes(forcedJson.error));
+check(
+  "假 Key 强制合成：传输层无回归（错误非 no-key/curl）",
+  Boolean(transportOk),
+  forcedJson ? `${forcedJson.error}: ${(forcedJson.message || "").slice(0, 50)}` : "无 JSON",
+);
+
 const bundle = await fetchText("/plugins/dsh-client-ui-taffy-pet/client.js");
 check(
   "客户端 bundle 可访问（HTTP " + bundle.status + "）",

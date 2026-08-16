@@ -207,7 +207,6 @@ export function apply(ctx) {
       if (isSse && !hasCloneKey()) {
         return { ok: false, error: 'no-key', message: '复刻音色缺少复刻 API Key：在设置 → 插件 → 塔菲桌宠 里填写' }
       }
-      if (shell === undefined) return { ok: false, error: 'env', message: '缺少 shell 服务' }
 
       // URL 校验：仅 http/https 绝对地址（不依赖全局 URL 构造器）
       let safeUrl
@@ -254,44 +253,84 @@ export function apply(ctx) {
         })
       }
 
-      // 跨平台：命令只用双引号 + "$VAR"（sh / PowerShell 兼容）；-w 格式串经 env 传入（避开各 shell 转义差异）
-      const command = 'curl -sS -m 60 -X POST "$TTS_URL" -H "$TTS_HEAD: $TTS_KEY"' +
-        (resource ? ' -H "X-Api-Resource-Id: $TTS_RES"' : '') +
-        ' -H "Content-Type: application/json" --data-binary @- -w "$HTTP_FMT"'
-
-      const res = await shell.run(await shell.resolve({
-        command,
-        timeoutMs: 65000,
-        stdoutMaxBytes: 4 * 1024 * 1024,
-        stdin: payload,
-        env: {
-          TTS_URL: safeUrl.href,
-          TTS_HEAD: headerLine,
-          TTS_KEY: ttsKey,
-          TTS_RES: resource,
-          HTTP_FMT: '\\n@@HTTP@@%{http_code}',
-          ...PROXY,
-        },
-      }))
-      const outText = (res.stdout && res.stdout.text) || ''
-      const stderrText = ((res.stderr && res.stderr.text) || '').trim()
-      const marker = '\n@@HTTP@@'
-      const markerIdx = outText.lastIndexOf(marker)
-      const httpCode = markerIdx >= 0 ? outText.slice(markerIdx + marker.length).trim() : ''
-      const body = markerIdx >= 0 ? outText.slice(0, markerIdx) : outText
-      if (res.exitCode !== 0 && res.exitCode !== null) {
-        return {
-          ok: false,
-          error: 'curl',
-          message: 'curl 退出码 ' + res.exitCode + '（HTTP ' + (httpCode || '无') + '）：' +
-            (stderrText.slice(0, 200) || '无错误输出，可能是网络/代理配置问题'),
+      // ── 传输层：优先 Node 内置 fetch（OpenSSL 栈，绕开 Windows 沙箱 schannel 的 curl 无法建 HTTPS 问题） ──
+      // 受限动态沙箱若无 fetch，则回退 shell + curl（macOS/Linux 正常）。
+      let body = ''
+      let httpCode = ''
+      let stderrText = ''
+      if (typeof fetch === 'function') {
+        const headers = { 'Content-Type': 'application/json' }
+        if (headerLine === 'Authorization: Bearer') headers.Authorization = 'Bearer ' + ttsKey
+        else headers[headerLine] = ttsKey
+        if (resource) headers['X-Api-Resource-Id'] = resource
+        let controller = null
+        let timer = null
+        if (typeof AbortController !== 'undefined') controller = new AbortController()
+        if (controller && typeof setTimeout === 'function') timer = setTimeout(() => controller.abort(), 60000)
+        try {
+          const response = await fetch(safeUrl.href, {
+            method: 'POST',
+            headers,
+            body: payload,
+            signal: controller ? controller.signal : undefined,
+          })
+          httpCode = String(response.status)
+          try { body = await response.text() } catch (e) { body = '' }
+        } catch (e) {
+          return {
+            ok: false,
+            error: 'network',
+            message: '网络请求失败：' + String((e && e.message) || e).slice(0, 200) + '（请检查网络/代理/TTS 地址）',
+          }
+        } finally {
+          if (timer) clearTimeout(timer)
         }
-      }
-      if (httpCode && httpCode !== '200') {
-        return {
-          ok: false,
-          error: 'http',
-          message: 'HTTP ' + httpCode + (stderrText ? '：' + stderrText.slice(0, 150) : '：服务端拒绝，检查 Key / Resource-Id / 地址'),
+        if (httpCode !== '200') {
+          return {
+            ok: false,
+            error: 'http',
+            message: 'HTTP ' + httpCode + (body ? '：' + body.slice(0, 150) : '：服务端拒绝，检查 Key / Resource-Id / 地址'),
+          }
+        }
+      } else {
+        if (shell === undefined) return { ok: false, error: 'env', message: '缺少 shell 服务' }
+        const command = 'curl -sS -m 60 -X POST "$TTS_URL" -H "$TTS_HEAD: $TTS_KEY"' +
+          (resource ? ' -H "X-Api-Resource-Id: $TTS_RES"' : '') +
+          ' -H "Content-Type: application/json" --data-binary @- -w "$HTTP_FMT"'
+        const res = await shell.run(await shell.resolve({
+          command,
+          timeoutMs: 65000,
+          stdoutMaxBytes: 4 * 1024 * 1024,
+          stdin: payload,
+          env: {
+            TTS_URL: safeUrl.href,
+            TTS_HEAD: headerLine,
+            TTS_KEY: ttsKey,
+            TTS_RES: resource,
+            HTTP_FMT: '\\n@@HTTP@@%{http_code}',
+            ...PROXY,
+          },
+        }))
+        const outText = (res.stdout && res.stdout.text) || ''
+        stderrText = ((res.stderr && res.stderr.text) || '').trim()
+        const marker = '\n@@HTTP@@'
+        const markerIdx = outText.lastIndexOf(marker)
+        httpCode = markerIdx >= 0 ? outText.slice(markerIdx + marker.length).trim() : ''
+        body = markerIdx >= 0 ? outText.slice(0, markerIdx) : outText
+        if (res.exitCode !== 0 && res.exitCode !== null) {
+          return {
+            ok: false,
+            error: 'curl',
+            message: 'curl 退出码 ' + res.exitCode + '（HTTP ' + (httpCode || '无') + '）：' +
+              (stderrText.slice(0, 200) || '无错误输出，可能是网络/代理配置问题'),
+          }
+        }
+        if (httpCode && httpCode !== '200') {
+          return {
+            ok: false,
+            error: 'http',
+            message: 'HTTP ' + httpCode + (stderrText ? '：' + stderrText.slice(0, 150) : '：服务端拒绝，检查 Key / Resource-Id / 地址'),
+          }
         }
       }
 
@@ -370,12 +409,17 @@ export function apply(ctx) {
       return { ok: true, configured: isConfigured(), ttsUrl: cfg.ttsUrl, customVoice: cfg.customVoice, customVoiceName: cfg.customVoiceName }
     }
 
-    function applyCloneConfig() {
+    function applyCloneConfig(args) {
+      const a = args || {}
       cfg.ttsUrl = DEFAULT.ttsUrl
       cfg.resourceId = 'seed-icl-2.0'
-      if (DEFAULT.cloneKey) cfg.cloneKey = DEFAULT.cloneKey
-      if (DEFAULT_CLONE_VOICE) cfg.customVoice = DEFAULT_CLONE_VOICE
-      if (DEFAULT_CLONE_VOICE_NAME) cfg.customVoiceName = DEFAULT_CLONE_VOICE_NAME
+      // 传入的 Key / 音色优先（避免 mode:'clone' 时丢弃面板里填的 Key），否则回退环境变量
+      if (typeof a.cloneKey === 'string' && a.cloneKey.trim()) cfg.cloneKey = a.cloneKey.trim()
+      else if (DEFAULT.cloneKey) cfg.cloneKey = DEFAULT.cloneKey
+      if (typeof a.customVoice === 'string' && a.customVoice.trim()) cfg.customVoice = a.customVoice.trim()
+      else if (DEFAULT_CLONE_VOICE) cfg.customVoice = DEFAULT_CLONE_VOICE
+      if (typeof a.customVoiceName === 'string') cfg.customVoiceName = a.customVoiceName.trim()
+      else if (DEFAULT_CLONE_VOICE_NAME) cfg.customVoiceName = DEFAULT_CLONE_VOICE_NAME
       console.log('[taffy-pet] clone config applied')
       return { ok: true, configured: isConfigured(), resourceId: cfg.resourceId, ttsUrl: cfg.ttsUrl, customVoice: cfg.customVoice, customVoiceName: cfg.customVoiceName, voice: cfg.customVoice || DEFAULT_VOICE }
     }
@@ -447,7 +491,7 @@ export function apply(ctx) {
       })
       harness.handle('pet-status', async () => status())
       harness.handle('set-config', async (args) => applyConfig(args || {}))
-      harness.handle('apply-clone-config', async () => applyCloneConfig())
+      harness.handle('apply-clone-config', async (args) => applyCloneConfig(args || {}))
       harness.handle('apply-plan-config', async (args) => applyPlanConfig(args || {}))
       console.log('[taffy-pet] host loaded (dynamic), configured =', isConfigured())
     } else {
@@ -479,7 +523,7 @@ export function apply(ctx) {
                 const raw = await readBody(req)
                 const body = JSON.parse(raw || '{}')
                 let result
-                if (body.mode === 'clone') result = applyCloneConfig()
+                if (body.mode === 'clone') result = applyCloneConfig(body)
                 else if (body.mode === 'plan') result = applyPlanConfig(body)
                 else result = applyConfig(body)
                 sendJson(res, result)
