@@ -60,15 +60,33 @@ cd dsh-taffy-pet
 profile 配置）：
 
 ```bash
-# Linux / macOS
+# Linux / macOS（标准 web profile）
 bash install.sh
 
 # Windows（PowerShell，在仓库根目录）
 .\install.ps1
+
+# Windows · deepseek-harness-desktop 桌面版（独立 desktop profile）
+.\install-desktop.ps1
 ```
 
-脚本会自动完成：构建 `lib/` → 创建/合并 `~/.dsh/profiles/web` 的 3 个配置文件 →
-创建软链（Windows 用 junction，无需管理员）。完成后直接 `dsh web` 启动即可。
+脚本会自动完成：构建 `lib/` → 创建/合并 profile 的 3 个配置文件 → 创建软链
+（Windows 用 junction，无需管理员）。完成后直接 `dsh web`（或重启桌面版）即可。
+
+> 桌面版（`install-desktop.ps1`）：目标是 `~/.dsh/profiles/desktop`，与桌面版自带插件
+> 共存互不干扰；桌面版还支持从**扩展坞**按 npm 包安装（见下方「npm 发布」）。
+
+### 3.0.1 桌面版扩展坞安装（npm 发布版）
+
+包已声明 DSH bundle patch（`"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`），
+发布到 npm 后可在 deepseek-harness-desktop 的 **扩展坞 → 插件安装** 里输入：
+
+```
+dsh-client-ui-taffy-pet@<版本号>
+```
+
+一键安装 / 更新 / 回滚，无需手动 link。当前仓库版本见
+`dsh-client-ui-taffy-pet/package.json`（若尚未发布，先用 `install-desktop.ps1`）。
 
 > 下面的「3.1~3.3 手动方式」留作参考 / 自定义安装时使用，普通用户用一键脚本即可。
 
