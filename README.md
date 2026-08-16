@@ -9,6 +9,19 @@
 
 ![桌宠示意](dsh-client-ui-taffy-pet/assets/EMO_HERO_URI.png)
 
+## 演示
+
+<p align="center">
+  <img src="docs/demo/demo-1.png" width="200" alt="启动按钮">
+  <img src="docs/demo/demo-2.png" width="220" alt="桌宠面板">
+  <img src="docs/demo/demo-3.png" width="220" alt="插件配置卡片">
+</p>
+
+<video controls width="480" poster="docs/demo/demo-1.png">
+  <source src="docs/demo/demo.mp4" type="video/mp4">
+  你的浏览器不支持视频播放，请下载 <a href="docs/demo/demo.mp4">demo.mp4</a> 查看。
+</video>
+
 ## 仓库结构（单一来源，无历史残留）
 
 ```
