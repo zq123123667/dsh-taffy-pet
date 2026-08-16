@@ -161,7 +161,9 @@ return {
           setUrlInput((prev) => prev || r.ttsUrl || '')
           setCustomInput((prev) => prev || r.customVoice || '')
           setCustomNameInput((prev) => prev || r.customVoiceName || '')
-          if (r.customVoice) setVoiceSel(r.customVoice)
+          // 预置模式默认选中预置音色（复刻音色保留但不默认选中，避免发给预置端点）
+          if (r.mode !== 'clone' && r.defaultVoice) setVoiceSel(r.defaultVoice)
+          else if (r.customVoice) setVoiceSel(r.customVoice)
           else if (r.defaultVoice) setVoiceSel(r.defaultVoice)
         }).catch(() => {})
       }
@@ -303,8 +305,8 @@ return {
         try {
           const r = await rpc.applyMode('plan', voiceArg)
           if (!r || !r.ok) { setBubble({ kind: 'err', text: '一键配置失败' }); return }
-          setStatus((s) => (s ? { ...s, configured: r.configured, resourceId: r.resourceId, ttsUrl: r.ttsUrl, customVoice: '', customVoiceName: '', mode: 'plan' } : s))
-          setResInput(r.resourceId); setUrlInput(r.ttsUrl); setCustomInput(''); setCustomNameInput('')
+          setStatus((s) => (s ? { ...s, configured: r.configured, resourceId: r.resourceId, ttsUrl: r.ttsUrl, customVoice: r.customVoice || '', customVoiceName: r.customVoiceName || '', mode: 'plan' } : s))
+          setResInput(r.resourceId); setUrlInput(r.ttsUrl); setCustomInput(r.customVoice || ''); setCustomNameInput(r.customVoiceName || '')
           setVoiceSel(r.voice)
           setBubble({ kind: 'idle', text: '已切到预置音色模式，说句话试试喵～' })
         } catch (e) {

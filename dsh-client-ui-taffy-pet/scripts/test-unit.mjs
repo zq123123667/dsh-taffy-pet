@@ -79,6 +79,21 @@ test("mode:clone 保留请求体 Key（附带发现 #1 回归）", async () => {
   assert.equal(r.configured, true);
 });
 
+test("模式往返：复刻→预置→复刻 保留复刻 Key/音色 ID/名称（不丢失）", async () => {
+  await post(configRoute, { mode: "clone", cloneKey: "fake-test-key-123456", customVoice: "S_test123", customVoiceName: "塔菲" });
+  // 切预置：复刻配置应保留
+  let r = await post(configRoute, { mode: "plan" });
+  assert.equal(r.ok, true);
+  assert.equal(r.customVoice, "S_test123", "切预置后复刻音色 ID 不应丢失");
+  assert.equal(r.customVoiceName, "塔菲", "切预置后复刻音色名称不应丢失");
+  // 切回复刻：Key 与音色全部恢复
+  r = await post(configRoute, { mode: "clone" });
+  assert.equal(r.configured, true, "切回复刻后 Key 应保留");
+  assert.equal(r.customVoice, "S_test123");
+  assert.equal(r.customVoiceName, "塔菲");
+  assert.equal(r.resourceId, "seed-icl-2.0");
+});
+
 // ── TTS：mock fetch 驱动三种响应解析 ──
 function withFetch(mock, fn) {
   const orig = globalThis.fetch;

@@ -443,11 +443,18 @@ return {
       const a = args || {}
       cfg.ttsUrl = PLAN_URL
       cfg.resourceId = 'seed-tts-2.0'
-      cfg.customVoice = ''
-      cfg.customVoiceName = ''
+      // 保留复刻音色配置（Key / ID / 名称）：切预置不清空，切回复刻时无需重填
       const v = a.voice && VOICES[a.voice] ? a.voice : DEFAULT_VOICE
       console.log('[taffy-pet] plan config applied, voice =', v)
-      return { ok: true, configured: isConfigured(), resourceId: cfg.resourceId, ttsUrl: cfg.ttsUrl, customVoice: '', voice: v }
+      return {
+        ok: true,
+        configured: isConfigured(),
+        resourceId: cfg.resourceId,
+        ttsUrl: cfg.ttsUrl,
+        customVoice: cfg.customVoice,
+        customVoiceName: cfg.customVoiceName,
+        voice: v,
+      }
     }
 
     // 静态路由安全：同源校验 + 简单限流（每 IP 每 10s 最多 30 次）
