@@ -14,7 +14,9 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/lint.mjs",
+    "test": "node scripts/build.mjs && node --test scripts/test-unit.mjs"
   },
   "dsh": {
     "bundle": {

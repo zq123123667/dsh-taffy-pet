@@ -14,6 +14,3 @@ Thumbs.db
 .env
 *.key
 secrets*
-scripts/test-run.mjs
-dsh-client-ui-taffy-pet/scripts/lint.mjs
-dsh-client-ui-taffy-pet/scripts/test-unit.mjs
