@@ -121,6 +121,30 @@ return {
       }
     })
 
+    // 免费回退：浏览器内置 Web Speech API（无 Key / 火山引擎失败时也能出声）
+    // resolve(true)=播放完成；resolve(false)=失败；onEnd 可选，结束时回调（调用方管理自身状态）
+    function speakViaWeb(sentence, rate, onEnd) {
+      return new Promise((resolve) => {
+        if (typeof speechSynthesis === 'undefined' || !speechSynthesis) {
+          resolve(false)
+          return
+        }
+        try { speechSynthesis.cancel() } catch (e) {}
+        const u = new SpeechSynthesisUtterance(sentence)
+        u.lang = 'zh-CN'
+        u.rate = Math.max(0.5, Math.min(2, Number(rate) || 1))
+        const zh = speechSynthesis.getVoices().find((v) => /^zh/i.test(v.lang))
+        if (zh) u.voice = zh
+        const done = (ok, ev) => {
+          if (onEnd) onEnd(ok, ev)
+          resolve(ok)
+        }
+        u.onend = () => done(true)
+        u.onerror = (ev) => done(false, ev)
+        speechSynthesis.speak(u)
+      })
+    }
+
     // ── 插件配置卡片（DSH 设置 → 插件 → 塔菲桌宠） ──
     slots.inject('settings.plugin.item', () => slots.register(
       { name: 'settings.plugin.item', id: 'taffy-pet', order: 30, label: () => '塔菲桌宠' },
@@ -226,6 +250,9 @@ return {
           try { audioRef.current.pause() } catch (e) {}
           audioRef.current = null
         }
+        if (typeof speechSynthesis !== 'undefined') {
+          try { speechSynthesis.cancel() } catch (e) {}
+        }
         setTalking(false)
         setBubble({ kind: 'idle', text: '已停止播放喵～' })
       }
@@ -236,6 +263,14 @@ return {
         try {
           const r = await rpc.speak({ text: sentence, voice: voiceSel, speed })
           if (!r || !r.ok) {
+            // 回退：浏览器免费语音（无 Key 或火山引擎失败时，至少能出声）
+            setTalking(true)
+            const fallbackOk = await speakViaWeb(sentence, speed, () => setTalking(false))
+            if (fallbackOk) {
+              setBubble({ kind: 'idle', text: okText || '（未配置火山引擎 Key，已用浏览器语音播放）' })
+              return true
+            }
+            setTalking(false)
             setBubble({
               kind: r && r.error === 'no-key' ? 'warn' : 'err',
               text: (r && r.message) || '合成失败',
@@ -247,6 +282,13 @@ return {
           await audio.play()
           return true
         } catch (e) {
+          // 异常也回退浏览器语音
+          setTalking(true)
+          const fallbackOk = await speakViaWeb(sentence, speed, () => setTalking(false))
+          if (fallbackOk) {
+            setBubble({ kind: 'idle', text: okText || '（火山引擎失败，已用浏览器语音播放）' })
+            return true
+          }
           setBubble({ kind: 'err', text: String((e && e.message) || e).slice(0, 200) })
           return false
         } finally {
@@ -544,9 +586,16 @@ return {
         setBusy(true)
         try {
           const r = await rpc.speak({ text: '塔菲来啦喵～测试测试！', voice: (status && (status.customVoice || status.defaultVoice)) || undefined, speed: 1 })
-          setMsg(r && r.ok ? '测试成功！' : ((r && r.message) || '测试失败'))
+          if (r && r.ok) {
+            setMsg('测试成功！')
+          } else {
+            // 回退浏览器免费语音（无 Key 也能验证出声）
+            const ok = await speakViaWeb('塔菲来啦喵～测试测试！', 1)
+            setMsg(ok ? '已用浏览器语音播放（未配置火山引擎 Key）' : ((r && r.message) || '测试失败'))
+          }
         } catch (e) {
-          setMsg('测试失败：' + String((e && e.message) || e))
+          const ok = await speakViaWeb('塔菲来啦喵～测试测试！', 1)
+          setMsg(ok ? '已用浏览器语音播放（火山引擎异常）' : ('测试失败：' + String((e && e.message) || e)))
         } finally {
           setBusy(false)
         }
