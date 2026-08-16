@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "node scripts/build.mjs",
     "lint": "node scripts/lint.mjs",
     "test": "node scripts/build.mjs && node --test scripts/test-unit.mjs"
   },
