@@ -189,29 +189,53 @@ return {
           if (r.mode !== 'clone' && r.defaultVoice) setVoiceSel(r.defaultVoice)
           else if (r.customVoice) setVoiceSel(r.customVoice)
           else if (r.defaultVoice) setVoiceSel(r.defaultVoice)
+          // 位置：host 侧持久化优先（跨重启/跨端口），localStorage 兜底
+          if (r.pos && typeof r.pos.x === 'number') setPos({ x: r.pos.x, y: r.pos.y })
+          else {
+            try {
+              const saved = JSON.parse(localStorage.getItem(POS_KEY))
+              if (saved && typeof saved.x === 'number') setPos({ x: saved.x, y: saved.y })
+            } catch (e) {}
+          }
         }).catch(() => {})
       }
       React.useEffect(() => {
         refreshStatus()
-        try {
-          const saved = JSON.parse(localStorage.getItem(POS_KEY))
-          if (saved && typeof saved.x === 'number') setPos({ x: saved.x, y: saved.y })
-        } catch (e) {}
       }, [])
+      // 感知面板：无已存位置时，探测右下角是否被其他 UI（如桌面版 aionui 面板）占据，被占则左移
+      React.useEffect(() => {
+        if (pos) return
+        try {
+          const el = document.elementFromPoint(window.innerWidth - 40, window.innerHeight - 40)
+          const covered = el && el !== document.body && el !== document.documentElement &&
+            !(el.closest && el.closest('.taffy-pet-root'))
+          if (covered) setPos({ x: Math.max(0, window.innerWidth - 380), y: Math.max(0, window.innerHeight - 360 - 16) })
+        } catch (e) {}
+      }, [pos, started])
       // 面板重新打开/切换配置时刷新，确保在设置卡片里新填的自定义音色出现在音色下拉最顶部
       React.useEffect(() => {
         if (started && !min) refreshStatus()
       }, [started, min, cfgOpen])
 
+      const lastPosRef = React.useRef(null)
       React.useEffect(() => {
         if (!drag) return
         const move = (ev) => {
           const x = Math.max(0, Math.min(window.innerWidth - 320, ev.clientX - drag.dx))
           const y = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - drag.dy))
           setPos({ x, y })
+          lastPosRef.current = { x, y }
           try { localStorage.setItem(POS_KEY, JSON.stringify({ x, y })) } catch (e) {}
         }
-        const up = () => setDrag(null)
+        const up = () => {
+          setDrag(null)
+          // 拖拽结束：同步位置到 host（跨重启/跨端口保留），localStorage 仅作兜底
+          if (lastPosRef.current) {
+            const p = lastPosRef.current
+            lastPosRef.current = null
+            rpc.setConfig({ pos: p }).catch(() => {})
+          }
+        }
         window.addEventListener('pointermove', move)
         window.addEventListener('pointerup', up)
         return () => {

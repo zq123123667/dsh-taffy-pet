@@ -41,6 +41,18 @@
 - **Windows 提示**：`~/.dsh` 对应 `%USERPROFILE%\.dsh`；素材目录若自动探测不到，设置
   `TAFFY_ASSET_DIR` 指向含 3 张 PNG 的目录即可。
 
+## 桌面版（deepseek-harness-desktop）兼容性
+
+- **安装**：`install-desktop.ps1` 一键装进 `~/.dsh/profiles/desktop`（幂等、保留桌面版自带配置）。
+- **默认位置感知面板**：无已存位置时自动探测右下角是否被右侧面板（如 aionui Explorer）占据，
+  被占则左移到面板左侧，避免被盖住。
+- **位置持久化走 host 侧文件**（`taffy-pet-pos.json`，可用 `TAFFY_POS_FILE` 覆盖）：
+  不依赖浏览器 localStorage，桌面版重启换端口后拖拽位置依然保留。
+- **已知限制（后续项）**：客户端仍使用 `slots.inject('shell.overlay')` 旧式挂载，
+  `@deepseek-ai/dsh-client-runtime/client` 新 API 的迁移在评估中（影响与面板的层叠顺序）。
+- **手动测试清单**：扩展坞打开（`Ctrl+Shift+X`）→ 社区板块应显示 dsh-taffy-pet 卡片 →
+  右下角桌宠不被 aionui 面板遮挡 → 拖拽位置在重启后保留。
+
 ---
 
 ## 目录结构

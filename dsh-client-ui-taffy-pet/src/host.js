@@ -393,6 +393,32 @@ return {
       return { ok: true, audioBase64: audio, format: 'mp3' }
     }
 
+    // ── 桌宠位置持久化（host 侧文件，跨重启/跨端口存活；不依赖浏览器 localStorage） ──
+    // 桌面版每次重启换端口，localStorage 按 origin 隔离会丢位置；文件按 DSH 数据根持久。
+    const POS_FILE = 'taffy-pet-pos.json'   // 相对 fs 后端默认基目录；可用 TAFFY_POS_FILE 覆盖
+    let savedPos = null
+    async function loadPos() {
+      if (fs === undefined) return null
+      try {
+        const file = ENV.TAFFY_POS_FILE || POS_FILE
+        const t = await fs.resolve(file, {})
+        const j = JSON.parse(await fs.readText(t))
+        if (j && typeof j.x === 'number' && typeof j.y === 'number') savedPos = { x: j.x, y: j.y }
+      } catch (e) { savedPos = null }
+      return savedPos
+    }
+    async function savePos(pos) {
+      if (fs === undefined || !pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') return false
+      try {
+        const file = ENV.TAFFY_POS_FILE || POS_FILE
+        const t = await fs.resolve(file, {})
+        await fs.writeText(t, JSON.stringify({ x: Math.round(pos.x), y: Math.round(pos.y) }))
+        savedPos = { x: Math.round(pos.x), y: Math.round(pos.y) }
+        return true
+      } catch (e) { return false }
+    }
+    loadPos()
+
     // ── 统一状态（RPC pet-status 与 GET /taffy-pet/config 共用同一形状，不含密钥） ──
     function status() {
       return {
@@ -408,6 +434,7 @@ return {
         cloneKeySet: hasCloneKey(),
         voices: Object.keys(VOICES).map((id) => ({ id, name: VOICES[id] })),
         dynamic: isDynamic,
+        pos: savedPos,
       }
     }
 
@@ -420,8 +447,13 @@ return {
       if (typeof x.ttsUrl === 'string' && x.ttsUrl.trim()) cfg.ttsUrl = x.ttsUrl.trim()
       if (typeof x.customVoice === 'string') cfg.customVoice = x.customVoice.trim()
       if (typeof x.customVoiceName === 'string') cfg.customVoiceName = x.customVoiceName.trim()
+      // 桌宠位置：异步持久化到 host 侧文件（不阻塞配置返回）
+      if (x.pos && typeof x.pos.x === 'number' && typeof x.pos.y === 'number') {
+        savePos(x.pos)
+        if (savedPos) { savedPos.x = Math.round(x.pos.x); savedPos.y = Math.round(x.pos.y) }
+      }
       console.log('[taffy-pet] config updated, configured =', isConfigured())
-      return { ok: true, configured: isConfigured(), ttsUrl: cfg.ttsUrl, customVoice: cfg.customVoice, customVoiceName: cfg.customVoiceName }
+      return { ok: true, configured: isConfigured(), ttsUrl: cfg.ttsUrl, customVoice: cfg.customVoice, customVoiceName: cfg.customVoiceName, pos: savedPos }
     }
 
     function applyCloneConfig(args) {
